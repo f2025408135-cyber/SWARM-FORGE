@@ -1,31 +1,42 @@
-"""
-Swarm-Forge End-to-End Supply Chain Demo
-"""
+"""Swarm-Forge end-to-end supply-chain demo.
 
+Exercises every subsystem in order (firewall → planner → parallel executor
+→ template hydration → AST compression → mutex state), then prints a
+human-readable summary. Runs against real Anthropic APIs when
+``ANTHROPIC_API_KEY`` is set and falls back to a pre-built mock DAG
+otherwise.
+
+Pass ``--test`` for a fast import/wiring self-check that imports every
+module and instantiates every class without issuing any API call.
+
+Part of the Swarm-Forge autonomous multi-agent orchestration framework.
+"""
 from __future__ import annotations
 
 import json
 import os
 import sys
 import time
+import traceback
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+_REPO_ROOT = Path(__file__).resolve().parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-from ast_context_compressor import ASTContextCompressor
-from dag_execution_engine import DAGManager, ParallelDAGRunner
-from drift_metrics import DriftDetector
-from execution_sandbox import SandboxExecutor
-from meta_orchestrator import MetaOrchestrator
-from mutex_storage import SynchronizedJSONStore
-from otel_telemetry_logger import HPFELogger
-from zero_trust_firewall import AgentFirewall
+from src.ast_context_compressor import ASTContextCompressor
+from src.dag_execution_engine import DAGManager, ParallelDAGRunner
+from src.drift_metrics import DriftDetector
+from src.execution_sandbox import SandboxExecutor
+from src.mutex_storage import SynchronizedJSONStore
+from src.otel_telemetry_logger import HPFELogger
+from src.zero_trust_firewall import AgentFirewall
 
 try:
-    from template_hydrator import AgentBlueprint, HydrationEngine, HydrationError  # type: ignore
+    from template_hydrator import AgentBlueprint, HydrationEngine, HydrationError  # type: ignore  # noqa: F401
 except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent))
-    from template_hydrator import AgentBlueprint, HydrationEngine, HydrationError  # type: ignore
+    sys.path.insert(0, str(_REPO_ROOT))
+    from template_hydrator import AgentBlueprint, HydrationEngine, HydrationError  # type: ignore  # noqa: F401
 
 # ── ANSI colours ──────────────────────────────────────────────────────────────
 RESET = "\033[0m"
@@ -140,7 +151,6 @@ def phase_banner() -> None:
     print()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 def phase_firewall() -> None:
     section("Phase 1 — Zero-Trust Firewall")
 
@@ -166,7 +176,6 @@ def phase_firewall() -> None:
     ok(f"Tool-call evaluate_tool_call() → {'SAFE' if tool_safe else 'BLOCKED'}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 def phase_dag_planning() -> dict:
     section("Phase 2 — DAG Planning  (claude-opus-4-7)")
 
@@ -178,7 +187,7 @@ def phase_dag_planning() -> dict:
         info("Calling plan_dag() via Opus 4.7 with prompt-caching …")
         t0 = time.time()
         try:
-            from dag_planner import plan_dag  # type: ignore
+            from src.dag_planner import plan_dag  # type: ignore
 
             dag = plan_dag(SUPPLY_CHAIN_PROBLEM)
             elapsed = time.time() - t0
@@ -198,7 +207,6 @@ def phase_dag_planning() -> dict:
     return dag
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 def phase_dag_execution(dag: dict) -> dict[str, dict]:
     section("Phase 3 — Parallel DAG Execution  (SandboxExecutor)")
 
@@ -234,12 +242,11 @@ def phase_dag_execution(dag: dict) -> dict[str, dict]:
     return results
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 def phase_template_hydration() -> None:
     section("Phase 4 — Template Hydration  (Jinja2 → Dockerfile)")
 
-    templates_dir = Path(__file__).parent / "templates"
-    output_dir = Path(__file__).parent / "generated"
+    templates_dir = _REPO_ROOT / "templates"
+    output_dir = _REPO_ROOT / "generated"
     output_dir.mkdir(exist_ok=True)
 
     engine = HydrationEngine(templates_dir=templates_dir, output_dir=output_dir)
@@ -261,7 +268,6 @@ def phase_template_hydration() -> None:
         warn("Template hydration returned False — check templates/ directory")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 def phase_ast_compression() -> None:
     section("Phase 5 — AST Context Compressor  (error triage)")
 
@@ -285,7 +291,6 @@ def phase_ast_compression() -> None:
             print(f"    {c(line, DIM)}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 def phase_state_persistence(results: dict[str, dict]) -> None:
     section("Phase 6 — Mutex State Persistence  (SynchronizedJSONStore)")
 
@@ -308,7 +313,6 @@ def phase_state_persistence(results: dict[str, dict]) -> None:
     info(f"Timestamp: {snapshot.get('run_timestamp', 'n/a')}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 def phase_summary(results: dict[str, dict]) -> None:
     section("Demo Complete — Summary")
 
@@ -318,7 +322,7 @@ def phase_summary(results: dict[str, dict]) -> None:
     print(f"\n  {c('Modules exercised:', BOLD)}")
     modules = [
         "AgentFirewall       (zero-trust input validation)",
-        "DAGManager          (Kahn's topological sort)",
+        "DAGManager          (Kahn's topological sort + DFS cycle check)",
         "ParallelDAGRunner   (concurrent node execution)",
         "SandboxExecutor     (subprocess isolation)",
         "DriftDetector       (hallucination-loop detection)",
@@ -326,6 +330,7 @@ def phase_summary(results: dict[str, dict]) -> None:
         "ASTContextCompressor(traceback compression)",
         "HydrationEngine     (Jinja2 → Dockerfile artefact)",
         "SynchronizedJSONStore(OS-level mutex file I/O)",
+        "RewardSwarmJudge    (adversarial semantic verification)",
     ]
     for m in modules:
         print(f"    {c('◆', CYAN)}  {m}")
@@ -343,8 +348,86 @@ def phase_summary(results: dict[str, dict]) -> None:
     print()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ── --test: comprehensive wiring self-check ────────────────────────────────
+def run_self_test() -> int:
+    """Import every module, instantiate every class, and report pass/fail.
+
+    No API calls are made. ``RewardSwarmJudge`` is skipped at instantiation
+    when ``ANTHROPIC_API_KEY`` is unset (that is correct fail-loud
+    behaviour, not a demo failure).
+
+    Returns:
+        ``0`` if every check passes, ``1`` otherwise.
+    """
+    section("Swarm-Forge self-test  (python demo.py --test)")
+
+    checks: list[tuple[str, callable]] = [
+        ("import src.ast_context_compressor",
+            lambda: __import__("src.ast_context_compressor", fromlist=["ASTContextCompressor"])),
+        ("import src.dag_execution_engine",
+            lambda: __import__("src.dag_execution_engine", fromlist=["DAGManager"])),
+        ("import src.dag_planner",
+            lambda: __import__("src.dag_planner", fromlist=["plan_dag"])),
+        ("import src.drift_metrics",
+            lambda: __import__("src.drift_metrics", fromlist=["DriftDetector"])),
+        ("import src.execution_sandbox",
+            lambda: __import__("src.execution_sandbox", fromlist=["SandboxExecutor"])),
+        ("import src.meta_orchestrator",
+            lambda: __import__("src.meta_orchestrator", fromlist=["MetaOrchestrator"])),
+        ("import src.mutex_storage",
+            lambda: __import__("src.mutex_storage", fromlist=["SynchronizedJSONStore"])),
+        ("import src.otel_telemetry_logger",
+            lambda: __import__("src.otel_telemetry_logger", fromlist=["HPFELogger"])),
+        ("import src.reward_judge",
+            lambda: __import__("src.reward_judge", fromlist=["RewardSwarmJudge"])),
+        ("import src.zero_trust_firewall",
+            lambda: __import__("src.zero_trust_firewall", fromlist=["AgentFirewall"])),
+        ("instantiate AgentFirewall",
+            lambda: AgentFirewall()),
+        ("instantiate SandboxExecutor",
+            lambda: SandboxExecutor()),
+        ("instantiate DriftDetector",
+            lambda: DriftDetector()),
+        ("instantiate HPFELogger",
+            lambda: HPFELogger()),
+        ("instantiate ASTContextCompressor",
+            lambda: ASTContextCompressor()),
+        ("DAGManager + cycle detection on valid DAG",
+            lambda: DAGManager({"nodes": [{"node_id": "a", "dependencies": [], "task_description": "t"}]})),
+    ]
+
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        from src.reward_judge import RewardSwarmJudge  # noqa: WPS433
+        checks.append(("instantiate RewardSwarmJudge (API key present)",
+                       lambda: RewardSwarmJudge()))
+    else:
+        warn("ANTHROPIC_API_KEY not set — skipping RewardSwarmJudge instantiation "
+             "(fail-loud EnvironmentError is correct behaviour)")
+
+    failures: list[tuple[str, str]] = []
+    for label, check in checks:
+        try:
+            check()
+            ok(label)
+        except Exception as exc:
+            fail(f"{label}  →  {type(exc).__name__}: {exc}")
+            failures.append((label, traceback.format_exc()))
+
+    print()
+    if not failures:
+        ok(c(f"All {len(checks)} self-checks PASSED", GREEN + BOLD))
+        return 0
+    fail(c(f"{len(failures)}/{len(checks)} self-checks FAILED", RED + BOLD))
+    for label, tb in failures:
+        print(c(f"\n--- {label} ---", RED))
+        print(c(tb, DIM))
+    return 1
+
+
 def main() -> None:
+    if "--test" in sys.argv:
+        sys.exit(run_self_test())
+
     phase_banner()
     phase_firewall()
     dag = phase_dag_planning()

@@ -1,8 +1,18 @@
+# Schema validation for DAG plans, hydration payloads, and state records.
 pydantic==2.9.2
+# FastMCP server powering stdio-transport exposure of swarm tools.
 fastmcp==0.2.0
+# Jinja2 template engine for Dockerfile / config / K8s manifest hydration.
 jinja2==3.1.2
+# OS-level mutex for concurrent-safe SynchronizedJSONStore state writes.
 filelock==3.13.1
+# HTTP client required by the Anthropic SDK transport layer.
 httpx==0.27.0
+# Pytest harness for the core test suite.
 pytest==7.4.4
+# Anthropic SDK: Opus 4.7 planner, Sonnet/Opus reward-judge, Haiku fallback.
 anthropic==0.39.0
+# OpenTelemetry API consumed by HPFELogger for structured failure events.
 opentelemetry-api==1.27.0
+# .env loader so demo.py and tests can source ANTHROPIC_API_KEY locally.
+python-dotenv==1.0.1

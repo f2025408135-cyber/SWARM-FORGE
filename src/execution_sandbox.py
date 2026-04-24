@@ -1,5 +1,17 @@
-"""
-Subprocess-sandboxed execution: runs generated node scripts in isolated processes.
+"""Execution sandbox — runs generated node scripts in isolated subprocesses.
+
+Builds a self-contained Python script for each DAG node, writes it to a
+temp file, and executes it via :func:`subprocess.run` with a bounded
+timeout. The parent process captures stdout/stderr and converts every
+outcome (success, timeout, non-zero exit, unexpected exception) into the
+canonical ``{"status", "output", "error"}`` result shape used by the DAG
+runner.
+
+Example:
+    >>> SandboxExecutor().execute("n1", "print hello", {})
+    {'status': 'success', 'output': '...', 'error': None}
+
+Part of the Swarm-Forge autonomous multi-agent orchestration framework.
 """
 from __future__ import annotations
 
@@ -10,49 +22,68 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-from typing import Any
+from typing import Any, Final
 
-logger = logging.getLogger("swarmforge.sandbox")
+logger: logging.Logger = logging.getLogger(__name__)
+
+DEFAULT_TIMEOUT_SEC: Final[int] = 120
+TEMP_SCRIPT_SUFFIX: Final[str] = ".py"
+STATUS_SUCCESS: Final[str] = "success"
+STATUS_ERROR: Final[str] = "error"
 
 
 class SandboxExecutor:
+    """Runs a task_description inside a bounded-timeout Python subprocess.
+
+    Stateless by design — the parent process captures stdout/stderr on
+    every invocation and converts every subprocess outcome to the canonical
+    result schema. The temp-file script is always unlinked, even on
+    timeout or exception.
+    """
+
     def execute(
         self,
         node_id: str,
         task_description: str,
         context: dict[str, Any],
-        timeout_sec: int = 120,
+        timeout_sec: int = DEFAULT_TIMEOUT_SEC,
     ) -> dict[str, Any]:
         """Run *task_description* for *node_id* in an isolated subprocess.
 
         Args:
             node_id: Unique identifier of the DAG node being executed.
-            task_description: Human-readable task passed into the generated script.
+            task_description: Human-readable task passed into the generated
+                script.
             context: Arbitrary key/value pairs made available to the script.
-            timeout_sec: Seconds to wait before killing the subprocess (default 120).
+            timeout_sec: Seconds to wait before killing the subprocess.
 
         Returns:
             A dict with keys ``status``, ``output``, and ``error``.
         """
-        script = self._build_script(node_id, task_description, context)
+        script: str = self._build_script(node_id, task_description, context)
         try:
-            stdout = self._run_subprocess(script, timeout_sec)
-            return {"status": "success", "output": stdout, "error": None}
+            stdout: str = self._run_subprocess(script, timeout_sec)
+            return {"status": STATUS_SUCCESS, "output": stdout, "error": None}
         except subprocess.TimeoutExpired:
             logger.warning("Node %s timed out after %ds", node_id, timeout_sec)
-            return {"status": "error", "output": "", "error": "execution_timeout"}
+            return {
+                "status": STATUS_ERROR,
+                "output": "",
+                "error": "execution_timeout",
+            }
         except subprocess.CalledProcessError as exc:
             logger.warning("Node %s exited non-zero: %s", node_id, exc.stderr)
             return {
-                "status": "error",
+                "status": STATUS_ERROR,
                 "output": exc.stdout or "",
                 "error": (exc.stderr or str(exc)).strip(),
             }
+        except OSError as exc:
+            logger.exception("OS error while sandboxing node %s", node_id)
+            return {"status": STATUS_ERROR, "output": "", "error": str(exc)}
         except Exception as exc:
             logger.exception("Unexpected sandbox error for node %s", node_id)
-            return {"status": "error", "output": "", "error": str(exc)}
-
-    # ── private ────────────────────────────────────────────────────────────
+            return {"status": STATUS_ERROR, "output": "", "error": str(exc)}
 
     def _build_script(
         self,
@@ -60,6 +91,16 @@ class SandboxExecutor:
         task_description: str,
         context: dict[str, Any],
     ) -> str:
+        """Render a self-contained Python script that echoes the node metadata.
+
+        Args:
+            node_id: ID of the DAG node.
+            task_description: Task text to embed in the script.
+            context: Arbitrary JSON-serialisable context.
+
+        Returns:
+            Source code for the temporary script.
+        """
         return textwrap.dedent(f"""\
             import json, sys
             node_id = {json.dumps(node_id)}
@@ -74,7 +115,20 @@ class SandboxExecutor:
         """)
 
     def _run_subprocess(self, script: str, timeout_sec: int) -> str:
-        fd, tmp_path = tempfile.mkstemp(suffix=".py")
+        """Write *script* to a temp file, execute it, and return stripped stdout.
+
+        Args:
+            script: Python source to execute.
+            timeout_sec: Maximum wall-clock seconds before termination.
+
+        Returns:
+            The subprocess stdout, stripped of trailing whitespace.
+
+        Raises:
+            subprocess.CalledProcessError: If the subprocess exits non-zero.
+            subprocess.TimeoutExpired: If the subprocess exceeds the timeout.
+        """
+        fd, tmp_path = tempfile.mkstemp(suffix=TEMP_SCRIPT_SUFFIX)
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 fh.write(script)
@@ -90,4 +144,7 @@ class SandboxExecutor:
                 )
             return proc.stdout.strip()
         finally:
-            os.unlink(tmp_path)
+            try:
+                os.unlink(tmp_path)
+            except OSError as exc:
+                logger.warning("Failed to unlink temp script %s: %s", tmp_path, exc)

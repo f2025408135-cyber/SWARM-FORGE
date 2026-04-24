@@ -9,5 +9,7 @@ requires-python = ">=3.12"
 description = "Autonomous meta-orchestration engine for multi-agent DAG swarms"
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "unit: fast, in-process tests with no network or subprocess dependencies",
+]

@@ -1,82 +1,121 @@
-"""
-MetaOrchestrator — Window 0: master controller that wires all eight modules.
+"""MetaOrchestrator — master controller that wires all eight Swarm-Forge modules.
+
+Ingests a natural-language enterprise problem, gates it through the zero-trust
+firewall, plans a DAG via the Anthropic API, executes it in parallel sandboxed
+subprocesses, verifies each node semantically with the reward-swarm judge, and
+persists terminal state through an OS-level mutex store.
 
 Execution flow:
   1. AgentFirewall gates the raw input problem.
   2. dag_planner produces a validated DAG.
-  3. State is written to .swarmforge_state.json via SynchronizedJSONStore.
+  3. Initial state is written to .swarmforge_state.json via SynchronizedJSONStore.
   4. ParallelDAGRunner drives node execution through SandboxExecutor.
-  5. DriftDetector checks each result; branch is aborted on anomaly.
-  6. HPFELogger records all failures as structured OTel events.
-  7. Final state is persisted and a summary dict is returned.
+  5. RewardSwarmJudge verifies stdout genuinely proves the task was solved.
+  6. DriftDetector checks each result; branch is aborted on anomaly.
+  7. HPFELogger records all failures as structured OTel events.
+  8. Final state is persisted and a summary dict is returned.
+
+Example:
+    >>> orchestrator = MetaOrchestrator(max_workers=4)
+    >>> result = orchestrator.run("Decompose and execute our Q2 migration plan.")
+    >>> result["status"]
+    'completed'
+
+Part of the Swarm-Forge autonomous multi-agent orchestration framework.
 """
 from __future__ import annotations
 
-import json as _json
 import logging
-import os
-import sys
 import time
-from datetime import datetime
-from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any
 
-import anthropic
-from filelock import FileLock
+from .ast_context_compressor import ASTContextCompressor
+from .dag_execution_engine import DAGManager, ParallelDAGRunner
+from .dag_planner import plan_dag
+from .drift_metrics import DriftDetector
+from .execution_sandbox import SandboxExecutor
+from .memory_system import SynapticGarbageCollector
+from .mutex_storage import SynchronizedJSONStore
+from .otel_telemetry_logger import HPFELogger
+from .reward_judge import RewardSwarmJudge
+from .zero_trust_firewall import AgentFirewall
 
-from ast_context_compressor import ASTContextCompressor
-from dag_execution_engine import DAGManager, ParallelDAGRunner
-from dag_planner import plan_dag
-from drift_metrics import DriftDetector
-from execution_sandbox import SandboxExecutor
-from mutex_storage import SynchronizedJSONStore
-from otel_telemetry_logger import HPFELogger
-from zero_trust_firewall import AgentFirewall
-from src.reward_judge import RewardSwarmJudge
+logger: logging.Logger = logging.getLogger(__name__)
 
-logger = logging.getLogger("swarmforge.orchestrator")
+STATE_FILE: str = ".swarmforge_state.json"
+DEFAULT_MAX_WORKERS: int = 4
+DEFAULT_NODE_TIMEOUT_SEC: int = 120
+PROBLEM_TRUNCATE_LEN: int = 500
+PROBLEM_LOG_TRUNCATE_LEN: int = 200
 
-_STATE_FILE = ".swarmforge_state.json"
-_LESSON_FILE = Path(__file__).parent.parent / "LESSON.md"
+STATUS_RUNNING: str = "running"
+STATUS_COMPLETED: str = "completed"
+STATUS_PARTIAL: str = "partial"
+STATUS_FAILED: str = "failed"
+STATUS_BLOCKED: str = "blocked"
+STATUS_PLANNING_FAILED: str = "planning_failed"
 
 
 class MetaOrchestrator:
-    def __init__(self, max_workers: int = 4) -> None:
-        self._firewall = AgentFirewall()
-        self._store = SynchronizedJSONStore(_STATE_FILE)
-        self._otel = HPFELogger()
-        self._sandbox = SandboxExecutor()
-        self._drift = DriftDetector()
-        self._compressor = ASTContextCompressor()
-        self._max_workers = max_workers
-        self._reward_judge = RewardSwarmJudge(use_opus=False)
+    """Top-level controller wiring firewall, planner, executor, judge, and logger.
+
+    Thread-safe: shared state is protected by OS-level file locking through
+    :class:`SynchronizedJSONStore`, and the DAG runner confines mutation of
+    scheduling state to a single enqueue coroutine.
+    """
+
+    def __init__(self, max_workers: int = DEFAULT_MAX_WORKERS) -> None:
+        """Initialise all eight subsystems.
+
+        Args:
+            max_workers: Maximum number of DAG nodes to execute in parallel.
+        """
+        self._firewall: AgentFirewall = AgentFirewall()
+        self._store: SynchronizedJSONStore = SynchronizedJSONStore(STATE_FILE)
+        self._otel: HPFELogger = HPFELogger()
+        self._sandbox: SandboxExecutor = SandboxExecutor()
+        self._drift: DriftDetector = DriftDetector()
+        self._compressor: ASTContextCompressor = ASTContextCompressor()
+        self._max_workers: int = max_workers
+        self._reward_judge: RewardSwarmJudge = RewardSwarmJudge(use_opus=False)
+        self._sgc: SynapticGarbageCollector = SynapticGarbageCollector()
 
     # ── public ─────────────────────────────────────────────────────────────
 
     def run(self, problem: str) -> dict[str, Any]:
-        start = time.monotonic()
+        """Run end-to-end orchestration on a natural-language problem.
 
-        # 1. Firewall: validate raw input before touching any external resource.
+        Args:
+            problem: Free-text enterprise problem to decompose and execute.
+
+        Returns:
+            A status dict with keys ``status``, ``nodes_completed``,
+            ``nodes_failed``, and ``execution_time_sec``. Failure modes
+            return additional ``reason`` or ``error`` keys.
+        """
+        start: float = time.monotonic()
+
         ok, reason = self._firewall.validate_input(problem)
         if not ok:
             self._otel.log_event("input_blocked", {"reason": reason})
             return self._result(
-                "blocked",
+                STATUS_BLOCKED,
                 nodes_completed=[],
                 nodes_failed=[],
                 elapsed=time.monotonic() - start,
                 extra={"reason": reason},
             )
 
-        # 2. Plan the DAG (Opus 4.7 with Haiku fallback, handled inside dag_planner).
         try:
-            dag = plan_dag(problem)
-        except Exception as exc:
+            dag: dict[str, Any] = plan_dag(problem)
+        except (RuntimeError, EnvironmentError, ValueError) as exc:
+            logger.exception("DAG planning failed")
             self._otel.log_failure(
-                "dag_planner", exc, {"problem": problem[:200]}
+                "dag_planner", exc, {"problem": problem[:PROBLEM_LOG_TRUNCATE_LEN]}
             )
             return self._result(
-                "planning_failed",
+                STATUS_PLANNING_FAILED,
                 nodes_completed=[],
                 nodes_failed=[],
                 elapsed=time.monotonic() - start,
@@ -85,11 +124,10 @@ class MetaOrchestrator:
 
         node_ids: list[str] = [n["node_id"] for n in dag["nodes"]]
 
-        # 3. Persist initial run state.
         self._store.write(
             {
-                "status": "running",
-                "problem": problem[:500],
+                "status": STATUS_RUNNING,
+                "problem": problem[:PROBLEM_TRUNCATE_LEN],
                 "dag": dag,
                 "nodes_completed": [],
                 "nodes_failed": [],
@@ -97,33 +135,34 @@ class MetaOrchestrator:
             }
         )
 
-        # 4. Wire execution engine and run.
-        dag_manager = DAGManager(dag)
-        runner = ParallelDAGRunner(
+        dag_manager: DAGManager = DAGManager(dag)
+        runner: ParallelDAGRunner = ParallelDAGRunner(
             dag_manager,
             executor_fn=lambda node: self._execute_node(node, dag),
             max_workers=self._max_workers,
         )
-        runner.run()  # results embedded in dag_manager statuses
+        runner.run()
 
-        # 5. Aggregate terminal statuses.
-        statuses = dag_manager.get_statuses()
-        nodes_completed = [nid for nid in node_ids if statuses.get(nid) == "success"]
-        nodes_failed = [
+        statuses: dict[str, str] = dag_manager.get_statuses()
+        nodes_completed: list[str] = [
+            nid for nid in node_ids if statuses.get(nid) == "success"
+        ]
+        nodes_failed: list[str] = [
             nid for nid in node_ids if statuses.get(nid) in ("failed", "error")
         ]
-        nodes_skipped = [nid for nid in node_ids if statuses.get(nid) == "skipped"]
+        nodes_skipped: list[str] = [
+            nid for nid in node_ids if statuses.get(nid) == "skipped"
+        ]
 
-        overall = (
-            "completed"
+        overall: str = (
+            STATUS_COMPLETED
             if not nodes_failed and not nodes_skipped
-            else "partial"
+            else STATUS_PARTIAL
             if nodes_completed
-            else "failed"
+            else STATUS_FAILED
         )
-        elapsed = time.monotonic() - start
+        elapsed: float = time.monotonic() - start
 
-        # 6. Persist final state.
         self._store.update(
             {
                 "status": overall,
@@ -159,10 +198,26 @@ class MetaOrchestrator:
     def _execute_node(
         self, node: dict[str, Any], dag: dict[str, Any]
     ) -> dict[str, Any]:
+        """Execute a single DAG node with firewall, sandbox, and reward-judge gating.
+
+        Re-validates the generated task description through the firewall, runs
+        the sandboxed subprocess with a metadata-derived timeout, then submits
+        stdout to :class:`RewardSwarmJudge` for semantic verification. A
+        failure signal from any gate demotes the node to ``error`` status and
+        emits an OTel failure event plus an immunity lesson to ``LESSON.md``.
+
+        Args:
+            node: DAG node dict with ``node_id``, ``task_description``, and
+                optional ``metadata`` keys.
+            dag: Full DAG dict, passed through to the sandbox as context.
+
+        Returns:
+            A dict with ``status``, ``output``, and ``error`` keys matching the
+            :class:`SandboxExecutor` contract.
+        """
         node_id: str = node["node_id"]
         task_description: str = node["task_description"]
 
-        # Firewall: re-validate the generated task description before executing.
         ok, reason = self._firewall.validate_input(task_description)
         if not ok:
             self._otel.log_event(
@@ -170,36 +225,37 @@ class MetaOrchestrator:
             )
             return {"status": "error", "error": f"firewall_blocked: {reason}"}
 
-        # Derive timeout from expected_duration or complexity metadata; default 120s.
-        metadata = node.get("metadata", {})
+        metadata: dict[str, Any] = node.get("metadata", {})
         timeout_sec: int = int(
             metadata.get("expected_duration")
             or metadata.get("complexity")
-            or 120
+            or DEFAULT_NODE_TIMEOUT_SEC
         )
 
         try:
-            result = self._sandbox.execute(
+            result: dict[str, Any] = self._sandbox.execute(
                 node_id,
                 task_description,
                 {"dag_metadata": dag.get("metadata", {})},
                 timeout_sec=timeout_sec,
             )
-            # === SEMANTIC REWARD JUDGE ===
             if result.get("status") == "success":
                 passed, critique = self._reward_judge.judge(
                     stdout=result.get("output", ""),
-                    task_description=node.get("task_description", ""),
+                    task_description=task_description,
                 )
                 if not passed:
                     result["status"] = "error"
-                    result["error"] = f"[SEMANTIC FAILURE] {critique}\n" + result.get("error", "")
-        except Exception as exc:
-            compressed = self._compressor.compress_error(exc)
+                    existing_error: str = result.get("error") or ""
+                    result["error"] = (
+                        f"[SEMANTIC FAILURE] {critique}\n{existing_error}"
+                    )
+        except (OSError, RuntimeError, ValueError) as exc:
+            compressed: str = self._compressor.compress_error(exc)
+            logger.exception("Unhandled sandbox error on node %s", node_id)
             self._otel.log_failure(node_id, exc, {"node": node, "trace": compressed})
             return {"status": "error", "error": compressed}
 
-        # Drift detection: record outcome, abort branch on repeated anomalies.
         self._drift.record_node_result(node_id, result)
         if self._drift.loop_anomaly(node_id):
             self._otel.log_event(
@@ -210,9 +266,8 @@ class MetaOrchestrator:
             )
             return {"status": "error", "error": "drift_loop_anomaly"}
 
-        # Syntactic failure: subprocess exited non-zero or timed out.
         if result.get("status") != "success":
-            analysis = self._compressor.compress_error(
+            analysis: str = self._compressor.compress_error(
                 RuntimeError(result.get("error", "unknown"))
             )
             self._write_immunity_lesson(node_id, task_description, "SYNTACTIC", analysis)
@@ -223,62 +278,7 @@ class MetaOrchestrator:
             )
             return result
 
-        # Semantic validation: ensure output actually satisfies the task intent.
-        stdout = result.get("output", "")
-        semantic_score = self._semantic_reward_judge(stdout, task_description)
-        if semantic_score == 0:
-            analysis = self._compressor.compress_error(
-                RuntimeError(
-                    f"Semantic judge rejected output for task: {task_description[:120]}"
-                )
-            )
-            self._write_immunity_lesson(node_id, task_description, "SEMANTIC", analysis)
-            logger.warning(
-                "Node %s passed syntactically but failed semantic judge", node_id
-            )
-            failed_result: dict[str, Any] = {
-                "status": "error",
-                "error": "semantic_judge_failed",
-            }
-            self._otel.log_failure(
-                node_id,
-                RuntimeError("semantic_judge_failed"),
-                {"result": failed_result},
-            )
-            return failed_result
-
         return result
-
-    def _semantic_reward_judge(self, stdout: str, task_description: str) -> int:
-        """Returns 1 if stdout satisfies task_description, 0 if not. Fail-open on any exception."""
-        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-        try:
-            response = client.messages.create(
-                model="claude-opus-4-7",
-                max_tokens=256,
-                system=[
-                    {
-                        "type": "text",
-                        "text": (
-                            "You are a semantic verification judge. Your ONLY job is to evaluate "
-                            "if the provided output actually solves the given task. Respond with "
-                            "ONLY the digit 1 if the output solves the task, or ONLY the digit 0 "
-                            "if it does not."
-                        ),
-                        "cache_control": {"type": "ephemeral"},
-                    }
-                ],
-                messages=[
-                    {
-                        "role": "user",
-                        "content": f"TASK: {task_description}\n\nOUTPUT:\n{stdout}",
-                    }
-                ],
-            )
-            text = response.content[0].text
-            return 1 if "1" in text else 0
-        except Exception:
-            return 1
 
     def _write_immunity_lesson(
         self,
@@ -287,20 +287,29 @@ class MetaOrchestrator:
         failure_type: str,
         ast_analysis: str,
     ) -> None:
-        lesson = (
-            f"## IMMUNITY LESSON\n"
-            f"- Node: {node_id}\n"
-            f"- Task: {task_description}\n"
-            f"- Failure Type: {failure_type}\n"
-            f"- AST Analysis: {ast_analysis}\n"
-            f"- Timestamp: {datetime.utcnow().isoformat()}\n"
+        """Persist a structured failure lesson via the Synaptic Garbage Collector.
+
+        Delegates all file I/O and compression logic to :class:`SynapticGarbageCollector`.
+        The SGC appends the formatted trace to its managed memory file and triggers
+        a Sawtooth Collapse if the file has exceeded its token budget.
+
+        Args:
+            node_id: Identifier of the failing DAG node.
+            task_description: Verbatim task description that failed.
+            failure_type: Either ``"SYNTACTIC"`` or ``"SEMANTIC"``.
+            ast_analysis: Compressed AST/traceback excerpt for future triage.
+        """
+        error_trace: str = (
+            f"Task: {task_description}\n"
+            f"Failure-Type: {failure_type}\n"
+            f"AST-Analysis: {ast_analysis}\n"
+            f"Recorded-At: {datetime.now(timezone.utc).isoformat()}"
         )
-        lock_path = str(_LESSON_FILE) + ".lock"
-        with FileLock(lock_path):
-            with open(_LESSON_FILE, "a", encoding="utf-8") as fh:
-                fh.write(lesson)
+        self._sgc.commit_and_prune(node_id, error_trace)
         logger.info(
-            "Immunity lesson written — node=%s failure_type=%s", node_id, failure_type
+            "Immunity lesson written via SGC — node=%s failure_type=%s",
+            node_id,
+            failure_type,
         )
 
     @staticmethod
@@ -312,6 +321,18 @@ class MetaOrchestrator:
         elapsed: float,
         extra: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Build the canonical orchestration result dict.
+
+        Args:
+            status: Overall run status.
+            nodes_completed: Node IDs that reached ``success``.
+            nodes_failed: Node IDs that reached ``failed`` or ``error``.
+            elapsed: Total wall-clock seconds.
+            extra: Optional additional keys merged into the result.
+
+        Returns:
+            The canonical result dict for the orchestration run.
+        """
         out: dict[str, Any] = {
             "status": status,
             "nodes_completed": nodes_completed,

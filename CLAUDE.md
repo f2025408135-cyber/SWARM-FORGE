@@ -1,52 +1,60 @@
 # Swarm-Forge Orchestrator — Claude Code Constitution
 
 ## Project Identity
-This is Swarm-Forge: a Meta-Agent orchestrator that ingests a natural language 
-enterprise problem, generates a validated DAG topology, and autonomously spawns 
-containerized multi-agent child swarms using the Anthropic API and FastMCP.
+Swarm-Forge is a Meta-Agent orchestrator that ingests a natural-language enterprise problem, produces a validated DAG topology via the Anthropic API, and drives sandboxed multi-agent child swarms with zero-trust input validation, semantic reward judging, Boardroom HITL governance, and synaptic immunity memory.
 
 ## Stack
-- Python 3.12 (strict type hints everywhere)
-- FastMCP for MCP server generation
-- anthropic SDK (claude-opus-4-7 for orchestration, claude-haiku-4-5 for routing)
-- filelock for OS-level mutex
+- Python 3.12 (strict type hints everywhere, `from __future__ import annotations`)
+- FastMCP for MCP server generation (stdio transport)
+- anthropic SDK: Opus 4.7 for planning, Sonnet 4.5 for reward judging, Haiku 4.5 for routing / planner fallback
+- filelock for OS-level mutex state
 - pydantic v2 for all schemas
 - jinja2 for template hydration
-- docker for sandboxed execution
+- Subprocess-isolated sandbox execution (no Docker runtime dependency)
 
-## Module Map (already built by prior agent — DO NOT rewrite these)
-- src/ast_context_compressor.py — AST-based error context extraction
-- src/mutex_storage.py — OS-level file locking for concurrent processes
-- src/template_hydrator.py — Jinja2 template engine
-- src/dag_execution_engine.py — Kahn's algorithm DAG runner
-- src/otel_telemetry_logger.py — OTel failure logging
-- src/zero_trust_firewall.py — Path/shell/PII validation
-- src/drift_metrics.py — Hallucination loop detection
-- src/execution_sandbox.py — Subprocess sandboxing
+## Module Map — FINAL V2
+All modules live in `src/` and are exported via `src/__init__.py`.
 
-## What Needs Building
-- src/meta_orchestrator.py — Window 0: wires all 8 modules, calls Anthropic API
-- src/dag_planner.py — NL prompt → validated DAG JSON using claude-opus-4-7
-- src/fastmcp_server.py — FastMCP server exposing swarm tools
-- demo.py — End-to-end supply chain demo script
-- templates/ — Jinja2 templates for Dockerfile, agent configs
-- tests/ — Pytest suite
+- `src/meta_orchestrator.py` — `MetaOrchestrator` wires all subsystems end-to-end.
+- `src/dag_planner.py` — `plan_dag` emits a validated `DagPlan` via Opus 4.7 (Haiku fallback).
+- `src/dag_execution_engine.py` — `DAGManager` + `ParallelDAGRunner` (DFS cycle check, Kahn bookkeeping, `ThreadPoolExecutor`).
+- `src/execution_sandbox.py` — `SandboxExecutor` runs nodes in bounded-timeout subprocesses.
+- `src/reward_judge.py` — `RewardSwarmJudge` adversarially verifies stdout against task_description.
+- `src/zero_trust_firewall.py` — `AgentFirewall` compiled-regex blocklist for inputs and tool calls.
+- `src/drift_metrics.py` — `DriftDetector` flags loop anomalies after N identical non-success outcomes.
+- `src/ast_context_compressor.py` — `ASTContextCompressor` reduces tracebacks to the essential signal.
+- `src/mutex_storage.py` — `SynchronizedJSONStore` (filelock-backed JSON persistence).
+- `src/otel_telemetry_logger.py` — `HPFELogger` emits structured OTel-style records.
+- `src/fastmcp_server.py` — FastMCP server exposing `plan_swarm`, `get_dag_status`, `validate_safety`.
+
+Auxiliary modules at the repo root (`template_hydrator.py`, etc.) remain unchanged and are consumed by `demo.py`.
 
 ## Rules
-- NEVER use threads. Use OS subprocesses only.
-- NEVER hardcode API keys. Use os.environ.
-- ALL file writes must go through SynchronizedJSONStore or SynchronizedSkillWriter.
-- ALL tool calls must pass through AgentFirewall.evaluate_tool_call() first.
-- Model routing: Opus 4.7 for DAG planning only. Haiku 4.5 for everything else.
-- Use prompt caching (cache_control ephemeral) on all static system prompts.
-- Max tokens for Opus calls: 4096. For Haiku: 1024.
+- `ThreadPoolExecutor` is the sanctioned concurrency primitive for parallel DAG execution. Shared state must be protected by `filelock` or `threading.Lock`.
+- NEVER hardcode API keys — always read from `os.environ["ANTHROPIC_API_KEY"]`.
+- All file writes to shared state must go through `SynchronizedJSONStore` (or the `LESSON.md` lock in `MetaOrchestrator`).
+- All tool calls must pass through `AgentFirewall.evaluate_tool_call()` before dispatch.
+- Model routing: Opus 4.7 for DAG planning; Sonnet 4.5 for the reward judge; Haiku 4.5 for routing and planner fallback.
+- Use prompt caching (`cache_control: {"type": "ephemeral"}`) on every static system prompt.
+- Max tokens: 4096 for Opus calls, 2048 for planner, 1024 for Haiku routing, 512 for the reward judge.
+
+## Professional-Grade Standards (enforced)
+- Every module starts with a triple-quoted docstring: one-line summary, 2–3-sentence role, example, and the Swarm-Forge author line.
+- Every public function/method carries complete Python 3.12 type hints (`list[str]`, `dict[str, Any]`) and a Google-style docstring.
+- No `print()` calls in `src/`; every module uses `logging.getLogger(__name__)`. `demo.py` is the sole exception (user-facing ANSI output).
+- No bare `except Exception`; every handler logs before handling.
+- Magic numbers and model IDs live in `SCREAMING_SNAKE_CASE` module constants.
+- Imports sorted into stdlib / third-party / local groups with blank-line separation.
+- Package imports are relative (`from .reward_judge import ...`) inside `src/`.
 
 ## Commands
-- Run demo: python demo.py
-- Run tests: pytest tests/ -v
-- Start MCP server: python src/fastmcp_server.py
+- Run demo: `python demo.py`
+- Run import/wiring self-test: `python demo.py --test`
+- Run tests: `pytest tests/ -v`
+- Start MCP server: `python src/fastmcp_server.py`
 
 ## Never
-- Do not rewrite existing module files unless fixing a bug.
-- Do not add unnecessary dependencies.
-- Do not use asyncio unless FastMCP requires it.
+- Do not rewrite existing module files unless fixing a bug or applying the professional-grade standards above.
+- Do not add unnecessary dependencies. Every entry in `requirements.txt` must be pinned and justified by an inline comment.
+- Do not use asyncio unless FastMCP requires it at a transport boundary.
+- Do not reintroduce the legacy `_semantic_reward_judge` method on `MetaOrchestrator`. `RewardSwarmJudge` is the sole semantic verification mechanism.

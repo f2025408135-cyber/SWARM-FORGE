@@ -1,24 +1,40 @@
-"""
-DAG Planner: natural language enterprise problem → validated DAG JSON.
-Uses claude-opus-4-7 for planning; claude-haiku-4-5-20251001 as fallback.
+"""DAG planner — natural language enterprise problem to validated DAG JSON.
+
+Calls the Anthropic API with a strict JSON-only system prompt, parses the
+response against a Pydantic schema that enforces unique snake_case node
+IDs, resolvable dependencies, and an acyclic graph (via Kahn's algorithm),
+and returns a plain Python dict. Uses ``claude-opus-4-7`` as the primary
+planner and falls back to ``claude-haiku-4-5-20251001`` if Opus itself
+raises an API error. A single parse/validation retry is performed with
+the rejected response fed back as error context.
+
+Example:
+    >>> dag = plan_dag("Parallelise our 6-step ETL across 3 warehouses.")
+    >>> [n["node_id"] for n in dag["nodes"]]
+    ['extract_salesforce', 'extract_stripe', ...]
+
+Part of the Swarm-Forge autonomous multi-agent orchestration framework.
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, Final
 
 import anthropic
 from pydantic import BaseModel, Field, field_validator
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
-_OPUS_MODEL = "claude-opus-4-7"
-_HAIKU_MODEL = "claude-haiku-4-5-20251001"
-_MAX_TOKENS = 2048
+MODEL_OPUS: Final[str] = "claude-opus-4-7"
+MODEL_HAIKU: Final[str] = "claude-haiku-4-5-20251001"
+MAX_TOKENS: Final[int] = 2048
+MIN_TASK_DESCRIPTION_LEN: Final[int] = 10
+NODE_ID_PATTERN: Final[str] = r"^[a-z][a-z0-9_]*$"
+ENV_API_KEY: Final[str] = "ANTHROPIC_API_KEY"
 
-_SYSTEM_PROMPT = """\
+_SYSTEM_PROMPT: Final[str] = """\
 You are a DAG planning engine for enterprise workflow orchestration.
 Given a natural language problem description, output ONLY valid JSON — \
 no markdown fences, no explanation, no prose before or after.
@@ -47,30 +63,63 @@ Constraints:
 """
 
 
-# ── Pydantic validation models ─────────────────────────────────────────────
-
 class DagNode(BaseModel):
-    node_id: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
-    task_description: str = Field(min_length=10)
+    """A single node in a planned DAG.
+
+    Attributes:
+        node_id: Unique lowercase snake_case identifier.
+        task_description: Human-readable task, at least 10 characters.
+        dependencies: Upstream node_ids that must succeed before this node
+            is eligible to execute.
+    """
+
+    node_id: str = Field(pattern=NODE_ID_PATTERN)
+    task_description: str = Field(min_length=MIN_TASK_DESCRIPTION_LEN)
     dependencies: list[str] = Field(default_factory=list)
 
 
 class DagMetadata(BaseModel):
+    """Planner-emitted metadata describing the planning call.
+
+    Attributes:
+        problem: Verbatim copy of the original problem string.
+        timestamp: ISO 8601 UTC timestamp of plan creation.
+    """
+
     problem: str
     timestamp: str
 
 
 class DagPlan(BaseModel):
+    """Root schema for a validated DAG plan.
+
+    Attributes:
+        nodes: List of :class:`DagNode` entries forming the DAG.
+        metadata: :class:`DagMetadata` for auditability.
+    """
+
     nodes: list[DagNode]
     metadata: DagMetadata
 
     @field_validator("nodes")
     @classmethod
     def _validate_dag_structure(cls, nodes: list[DagNode]) -> list[DagNode]:
+        """Enforce non-emptiness, dependency resolvability, and acyclicity.
+
+        Args:
+            nodes: Parsed node list to validate.
+
+        Returns:
+            The same node list if validation succeeds.
+
+        Raises:
+            ValueError: If the DAG is empty, references an unknown
+                dependency, or contains a cycle.
+        """
         if not nodes:
             raise ValueError("DAG must contain at least one node")
 
-        node_ids = {n.node_id for n in nodes}
+        node_ids: set[str] = {n.node_id for n in nodes}
 
         for node in nodes:
             for dep in node.dependencies:
@@ -79,7 +128,6 @@ class DagPlan(BaseModel):
                         f"Node '{node.node_id}' declares unknown dependency '{dep}'"
                     )
 
-        # Cycle detection via Kahn's topological sort
         in_degree: dict[str, int] = {n.node_id: 0 for n in nodes}
         adjacency: dict[str, list[str]] = {n.node_id: [] for n in nodes}
         for node in nodes:
@@ -87,10 +135,10 @@ class DagPlan(BaseModel):
                 adjacency[dep].append(node.node_id)
                 in_degree[node.node_id] += 1
 
-        queue = [nid for nid, deg in in_degree.items() if deg == 0]
-        visited = 0
+        queue: list[str] = [nid for nid, deg in in_degree.items() if deg == 0]
+        visited: int = 0
         while queue:
-            nid = queue.pop()
+            nid: str = queue.pop()
             visited += 1
             for child in adjacency[nid]:
                 in_degree[child] -= 1
@@ -98,24 +146,46 @@ class DagPlan(BaseModel):
                     queue.append(child)
 
         if visited != len(nodes):
-            raise ValueError("DAG contains a cycle — dependency graph is not acyclic")
+            raise ValueError(
+                "DAG contains a cycle — dependency graph is not acyclic"
+            )
 
         return nodes
 
 
-# ── Internal helpers ───────────────────────────────────────────────────────
-
 def _build_client() -> anthropic.Anthropic:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    """Construct an authenticated Anthropic client from the environment.
+
+    Returns:
+        A ready-to-use :class:`anthropic.Anthropic` instance.
+
+    Raises:
+        EnvironmentError: If ``ANTHROPIC_API_KEY`` is not set.
+    """
+    api_key: str | None = os.environ.get(ENV_API_KEY)
     if not api_key:
-        raise EnvironmentError("ANTHROPIC_API_KEY environment variable is not set")
+        raise EnvironmentError(
+            f"{ENV_API_KEY} environment variable is not set"
+        )
     return anthropic.Anthropic(api_key=api_key)
 
 
-def _call_model(client: anthropic.Anthropic, model: str, user_content: str) -> str:
+def _call_model(
+    client: anthropic.Anthropic, model: str, user_content: str
+) -> str:
+    """Issue a single ``messages.create`` call and return the text response.
+
+    Args:
+        client: Authenticated Anthropic client.
+        model: Model ID to route to.
+        user_content: User message content.
+
+    Returns:
+        The first text block of the response.
+    """
     response = client.messages.create(
         model=model,
-        max_tokens=_MAX_TOKENS,
+        max_tokens=MAX_TOKENS,
         system=[
             {
                 "type": "text",
@@ -129,57 +199,77 @@ def _call_model(client: anthropic.Anthropic, model: str, user_content: str) -> s
 
 
 def _parse_and_validate(raw: str) -> dict[str, Any]:
-    stripped = raw.strip()
-    # Strip accidental markdown fences if the model ignores the no-fence instruction
+    """Strip markdown fences, parse JSON, and run Pydantic validation.
+
+    Args:
+        raw: Raw model response text.
+
+    Returns:
+        A plain dict representation of the validated DAG plan.
+
+    Raises:
+        json.JSONDecodeError: If the stripped payload is not valid JSON.
+        ValueError: If the parsed data fails Pydantic validation.
+    """
+    stripped: str = raw.strip()
     if stripped.startswith("```"):
         stripped = stripped.split("\n", 1)[1]
         stripped = stripped.rsplit("```", 1)[0].strip()
 
-    data = json.loads(stripped)
-    plan = DagPlan.model_validate(data)
+    data: Any = json.loads(stripped)
+    plan: DagPlan = DagPlan.model_validate(data)
     return plan.model_dump()
 
-
-# ── Public API ─────────────────────────────────────────────────────────────
 
 def plan_dag(problem: str) -> dict[str, Any]:
     """Convert a natural language enterprise problem into a validated DAG dict.
 
-    Retries once (with error context) if JSON parse/validation fails.
-    Falls back to Haiku if the Opus API call itself raises an error.
-    """
-    client = _build_client()
-    user_msg = f"Enterprise problem to decompose into a DAG:\n\n{problem}"
+    Retries once with error context if JSON parse/validation fails; falls
+    back to Haiku if the Opus API call itself raises an error.
 
-    using_fallback = False
+    Args:
+        problem: Free-text enterprise problem description.
+
+    Returns:
+        A validated DAG dict with ``nodes`` and ``metadata`` keys.
+
+    Raises:
+        EnvironmentError: If ``ANTHROPIC_API_KEY`` is not set.
+        RuntimeError: If planning fails even after the retry.
+    """
+    client: anthropic.Anthropic = _build_client()
+    user_msg: str = f"Enterprise problem to decompose into a DAG:\n\n{problem}"
+
+    using_fallback: bool = False
     raw: str
 
-    # Primary: Opus 4.7
     try:
-        raw = _call_model(client, _OPUS_MODEL, user_msg)
+        raw = _call_model(client, MODEL_OPUS, user_msg)
     except anthropic.APIError as exc:
         logger.warning("Opus call failed (%s); falling back to Haiku", exc)
         using_fallback = True
-        raw = _call_model(client, _HAIKU_MODEL, user_msg)
+        raw = _call_model(client, MODEL_HAIKU, user_msg)
 
-    # Parse + validate, with one retry on failure
     try:
         return _parse_and_validate(raw)
     except (json.JSONDecodeError, ValueError) as first_err:
-        logger.warning("Parse/validation failed on first attempt: %s — retrying", first_err)
+        logger.warning(
+            "Parse/validation failed on first attempt: %s — retrying", first_err
+        )
 
-        retry_msg = (
+        retry_msg: str = (
             f"{user_msg}\n\n"
             f"Your previous response could not be parsed. Error: {first_err}\n"
             f"Rejected response was:\n{raw}\n\n"
             "Output ONLY valid JSON matching the required schema. "
             "No markdown fences, no prose, no explanation."
         )
-        active_model = _HAIKU_MODEL if using_fallback else _OPUS_MODEL
+        active_model: str = MODEL_HAIKU if using_fallback else MODEL_OPUS
         try:
             raw = _call_model(client, active_model, retry_msg)
             return _parse_and_validate(raw)
         except (json.JSONDecodeError, ValueError) as second_err:
+            logger.error("DAG planning failed after retry: %s", second_err)
             raise RuntimeError(
                 f"DAG planning failed after retry.\n"
                 f"Validation error: {second_err}\n"
