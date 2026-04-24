@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -15,7 +16,7 @@ def _run_hook(script_name: str, stdin_data: dict) -> subprocess.CompletedProcess
     """Run a hook script as a subprocess with JSON on stdin."""
     script = _HOOKS_DIR / script_name
     result = subprocess.run(
-        ["python3", str(script)],
+        [sys.executable, str(script)],
         input=json.dumps(stdin_data),
         capture_output=True,
         text=True,
@@ -152,7 +153,7 @@ class TestPreToolValidation:
 
     def test_handles_invalid_json_gracefully(self) -> None:
         result = subprocess.run(
-            ["python3", str(_HOOKS_DIR / "pre_tool_validation.py")],
+            [sys.executable, str(_HOOKS_DIR / "pre_tool_validation.py")],
             input="not json at all",
             capture_output=True,
             text=True,
@@ -163,7 +164,7 @@ class TestPreToolValidation:
 
     def test_handles_empty_stdin(self) -> None:
         result = subprocess.run(
-            ["python3", str(_HOOKS_DIR / "pre_tool_validation.py")],
+            [sys.executable, str(_HOOKS_DIR / "pre_tool_validation.py")],
             input="",
             capture_output=True,
             text=True,
@@ -228,7 +229,7 @@ class TestPostToolASTFlush:
 
     def test_flush_handles_invalid_json(self) -> None:
         result = subprocess.run(
-            ["python3", str(_HOOKS_DIR / "post_tool_ast_flush.py")],
+            [sys.executable, str(_HOOKS_DIR / "post_tool_ast_flush.py")],
             input="not json",
             capture_output=True,
             text=True,
@@ -293,7 +294,7 @@ class TestPostBashAudit:
 
     def test_handles_invalid_json(self) -> None:
         result = subprocess.run(
-            ["python3", str(_HOOKS_DIR / "post_bash_audit.py")],
+            [sys.executable, str(_HOOKS_DIR / "post_bash_audit.py")],
             input="garbage",
             capture_output=True,
             text=True,

@@ -1,0 +1,32 @@
+"""
+Auto-generated agent configuration for {{ agent_name }}
+"""
+
+AGENT_CONFIG = {
+    "name": "{{ agent_name }}",
+    "model": "{{ model }}",
+    "tools": [
+{% for tool in tools %}
+        {
+            "name": "{{ tool.name }}",
+            "description": "{{ tool.description }}",
+{% if tool.parameters %}
+            "parameters": {{ tool.parameters | tojson(indent=16) }}
+{% endif %}
+        },
+{% endfor %}
+    ],
+    "mcp_servers": [
+{% for server in mcp_servers %}
+        {
+            "type": "{{ server.type }}",
+            "name": "{{ server.name }}",
+{% if server.config %}
+            "config": {{ server.config | tojson(indent=16) }}
+{% endif %}
+        },
+{% endfor %}
+    ],
+    "max_tokens": 1024,
+    "temperature": 0.7,
+}

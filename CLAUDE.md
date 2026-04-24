@@ -1,29 +1,52 @@
-# Swarm-Forge Sovereign Architect Constitution
+# Swarm-Forge Orchestrator — Claude Code Constitution
 
-## Identity
-You are Window 0 — The Sovereign Architect of Swarm-Forge. You are a 
-recursive meta-orchestration engine. Your sole purpose is to ingest 
-enterprise business problems and compile them into deployed multi-agent 
-DAG child swarms.
+## Project Identity
+This is Swarm-Forge: a Meta-Agent orchestrator that ingests a natural language 
+enterprise problem, generates a validated DAG topology, and autonomously spawns 
+containerized multi-agent child swarms using the Anthropic API and FastMCP.
 
-## Absolute Laws
-1. NEVER write raw Python boilerplate — delegate to Jinja2 templates
-2. NEVER pass full context history to child agents — use AST summaries
-3. NEVER hardcode credentials — use proxy token references only
-4. NEVER skip schema validation — all inter-agent payloads must pass Pydantic
-5. ALWAYS route >80% of execution tasks to Haiku/Sonnet tier models
-6. ALWAYS flush raw agent code through AST compressor after completion
-7. ALWAYS write to LESSON.md when a bug is fixed
-8. ALWAYS check LESSON.md before spawning a new agent type
+## Stack
+- Python 3.12 (strict type hints everywhere)
+- FastMCP for MCP server generation
+- anthropic SDK (claude-opus-4-7 for orchestration, claude-haiku-4-5 for routing)
+- filelock for OS-level mutex
+- pydantic v2 for all schemas
+- jinja2 for template hydration
+- docker for sandboxed execution
 
-## Budget Protocol
-- Opus 4.7: DAG topology, conflict resolution, complex verification only
-- Sonnet 4.6: Sub-agent logic synthesis, routing rules
-- Haiku 4.5: TOON formatting, linting, documentation
+## Module Map (already built by prior agent — DO NOT rewrite these)
+- src/ast_context_compressor.py — AST-based error context extraction
+- src/mutex_storage.py — OS-level file locking for concurrent processes
+- src/template_hydrator.py — Jinja2 template engine
+- src/dag_execution_engine.py — Kahn's algorithm DAG runner
+- src/otel_telemetry_logger.py — OTel failure logging
+- src/zero_trust_firewall.py — Path/shell/PII validation
+- src/drift_metrics.py — Hallucination loop detection
+- src/execution_sandbox.py — Subprocess sandboxing
 
-## File Structure
-- /workspace/generated/     — all generated child swarm code
-- /workspace/logs/          — HPFE traces and telemetry
-- /workspace/templates/     — Jinja2 .j2 templates
-- /workspace/skills/        — FastMCP tools (dynamic, hot-reload)
-- /workspace/memory/        — LESSON.md, SKILL.md, experience library
+## What Needs Building
+- src/meta_orchestrator.py — Window 0: wires all 8 modules, calls Anthropic API
+- src/dag_planner.py — NL prompt → validated DAG JSON using claude-opus-4-7
+- src/fastmcp_server.py — FastMCP server exposing swarm tools
+- demo.py — End-to-end supply chain demo script
+- templates/ — Jinja2 templates for Dockerfile, agent configs
+- tests/ — Pytest suite
+
+## Rules
+- NEVER use threads. Use OS subprocesses only.
+- NEVER hardcode API keys. Use os.environ.
+- ALL file writes must go through SynchronizedJSONStore or SynchronizedSkillWriter.
+- ALL tool calls must pass through AgentFirewall.evaluate_tool_call() first.
+- Model routing: Opus 4.7 for DAG planning only. Haiku 4.5 for everything else.
+- Use prompt caching (cache_control ephemeral) on all static system prompts.
+- Max tokens for Opus calls: 4096. For Haiku: 1024.
+
+## Commands
+- Run demo: python demo.py
+- Run tests: pytest tests/ -v
+- Start MCP server: python src/fastmcp_server.py
+
+## Never
+- Do not rewrite existing module files unless fixing a bug.
+- Do not add unnecessary dependencies.
+- Do not use asyncio unless FastMCP requires it.

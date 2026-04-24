@@ -100,7 +100,6 @@ class HydrationEngine:
         self._env: Environment = Environment(
             loader=FileSystemLoader(str(self._templates_root)),
             keep_trailing_newline=True,
-            encoding="utf-8",
         )
 
     # -- private helpers ---------------------------------------------------

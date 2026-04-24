@@ -1,48 +1,75 @@
-# Swarm-Forge
+# Swarm-Forge Orchestrator
 
-**Autonomous meta-orchestration engine that compiles natural language
-enterprise problems into deployed multi-agent DAG child swarms.**
+**Self-healing autonomous multi-agent DAG orchestrator** — Meta-agent system that ingests enterprise problems, validates DAG topologies, and spawns containerized child swarms via Anthropic APIs.
 
 ## Architecture
-Natural Language Input
-↓
-TDAG Engine (Opus 4.7)
-↓
-DAG Topology + Budget Map
-↓
-Contract-First Compiler
-(Pydantic schemas generated per edge)
-↓
-Template Hydrator (Jinja2 — zero API cost)
-↓
-FastMCP Server Generation
-↓
-Docker Factory → Kubernetes Deploy
-↓
-Self-Healing Loop (HPFE → RCA → Shadow Branch)
-↓
-Epistemic Compounding (LESSON.md → immune memory)
 
-## Modules Built
-| Module | Purpose |
-|--------|---------|
-| `mutex_storage.py` | OS-level mutex for 9-process concurrent file I/O |
-| `dag_execution_engine.py` | Kahn's algorithm DAG with parallel ThreadPoolExecutor |
-| `ast_context_compressor.py` | 6x token compression via AST serialization |
-| `template_hydrator.py` | Jinja2 hydration engine (zero API cost code gen) |
-| `otel_telemetry_logger.py` | OTel GenAI HPFE logging |
-| `schemas.py` | Typed Pydantic contracts (zero natural language handoffs) |
-| `circuit_breakers.py` | Fuse/Sentinel/Medic + ComputeAuditor |
-| `memory_system.py` | LESSON.md + SKILL.md + Milvus episodic memory |
-
-## Quick Start
-```bash
-cp .env.example .env
-# Add your ANTHROPIC_API_KEY
-pip install -r requirements.txt
-pytest tests/ -v
+```
+┌─────────────────────────────────────────────────────────┐
+│                  Meta-Orchestrator                      │
+│           (NL Input → DAG Planning → Execution)         │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+         ┌─────────────┼─────────────┐
+         │             │             │
+    ┌────▼────┐   ┌───▼────┐   ┌───▼────┐
+    │ DAG     │   │FastMCP │   │ Firewall│
+    │Planner  │   │ Server │   │ (Zero-  │
+    │(Opus)   │   │        │   │ Trust)  │
+    └────┬────┘   └───┬────┘   └───┬────┘
+         │             │             │
+    ┌────┴─────────────┴─────────────┴────┐
+    │   DAG Execution Engine (Kahn)      │
+    └────┬──────────────────────────────┬─┘
+         │                              │
+    ┌────▼──────┐  ┌────────────┐  ┌───▼────┐
+    │ Sandbox   │  │ AST        │  │Drift   │
+    │Executor   │  │Compressor  │  │Metrics │
+    └─────┬─────┘  └────┬───────┘  └────┬───┘
+          │             │                │
+    ┌─────▼─────────────▼────────────────▼────┐
+    │  Mutex Storage │ Template Hydrator      │
+    │  (File Locking)│ (Jinja2)              │
+    └────────────────┬───────────────────────┘
+                     │
+            ┌────────▼────────┐
+            │   OTel Logging  │
+            │   (Observability)
+            └─────────────────┘
 ```
 
-## Hackathon
-Built for the Anthropic Hackathon 2026. Core orchestration powered
-by Claude Opus 4.6 via Claude Code CLI.
+## Install
+
+```bash
+pip install -r requirements.txt
+```
+
+## Usage
+
+```bash
+# End-to-end demo
+python demo.py
+
+# Run test suite
+pytest tests/ -v
+
+# Start FastMCP server
+python src/fastmcp_server.py
+```
+
+## Model Pricing (Per 1M Tokens)
+
+| Model | Input | Output |
+|-------|-------|--------|
+| Haiku 4.5 | $0.80 | $4.00 |
+| Sonnet 4.6 | $3.00 | $15.00 |
+| Opus 4.7 | $15.00 | $75.00 |
+
+**Routing:** Opus for DAG planning only; Haiku for routing/execution.
+
+## Stack
+- Python 3.12 + type hints
+- FastMCP + Anthropic SDK
+- Pydantic v2 schemas
+- Jinja2 templates
+- Docker sandboxing
