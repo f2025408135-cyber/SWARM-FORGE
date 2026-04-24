@@ -16,7 +16,12 @@ Part of the Swarm-Forge autonomous multi-agent orchestration framework.
 from __future__ import annotations
 
 from .ast_context_compressor import ASTContextCompressor
-from .dag_execution_engine import DAGManager, ParallelDAGRunner
+from .dag_execution_engine import (
+    BayesianBeliefState,
+    DAGManager,
+    ParallelDAGRunner,
+    ROLocker,
+)
 from .dag_planner import DagMetadata, DagNode, DagPlan, plan_dag
 from .drift_metrics import DriftDetector
 from .execution_sandbox import SandboxExecutor
@@ -25,11 +30,13 @@ from .meta_orchestrator import MetaOrchestrator
 from .mutex_storage import SynchronizedJSONStore
 from .otel_telemetry_logger import HPFELogger
 from .reward_judge import RewardSwarmJudge
+from .skill_synthesis import SkillSynthesisEngine
 from .zero_trust_firewall import AgentFirewall
 
 __all__: list[str] = [
     "ASTContextCompressor",
     "AgentFirewall",
+    "BayesianBeliefState",
     "DAGManager",
     "DagMetadata",
     "DagNode",
@@ -38,8 +45,10 @@ __all__: list[str] = [
     "HPFELogger",
     "MetaOrchestrator",
     "ParallelDAGRunner",
+    "ROLocker",
     "RewardSwarmJudge",
     "SandboxExecutor",
+    "SkillSynthesisEngine",
     "SynchronizedJSONStore",
     "SynapticGarbageCollector",
     "plan_dag",

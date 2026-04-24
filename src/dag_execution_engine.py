@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
+import math
 import threading
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -38,6 +39,158 @@ _TERMINAL_STATUSES: Final[frozenset[str]] = frozenset(
 )
 
 _NodeStatus = str
+
+
+class BayesianBeliefState:
+    """Probabilistic belief tracking for a single environment variable.
+
+    Stores observed values as (value, confidence_probability) tuples.
+    Confidence is updated using a simple Bayesian update rule where
+    consistent observations increase confidence toward 1.0.
+
+    Part of the Swarm-Forge autonomous multi-agent orchestration framework.
+    """
+
+    def __init__(
+        self,
+        initial_value: str = "",
+        initial_confidence: float = 0.5,
+    ) -> None:
+        """Initialize belief state.
+
+        Args:
+            initial_value: Initial observed value for this variable.
+            initial_confidence: Starting probability confidence (0.0–1.0).
+        """
+        self._value: str = initial_value
+        self._confidence: float = max(0.0, min(1.0, initial_confidence))
+        self._observation_count: int = 1
+
+    def observe(self, new_value: str) -> None:
+        """Update belief with a new observation using Bayesian update.
+
+        Consistent observations increase confidence; divergent ones decrease it.
+
+        Args:
+            new_value: Newly observed value for this variable.
+        """
+        self._observation_count += 1
+        if new_value == self._value:
+            self._confidence = 1.0 - (1.0 - self._confidence) * math.exp(-0.3)
+        else:
+            self._value = new_value
+            self._confidence *= 0.7
+
+    @property
+    def state(self) -> tuple[str, float]:
+        """Return current ``(observed_value, confidence_probability)`` tuple."""
+        return self._value, self._confidence
+
+    @property
+    def confidence(self) -> float:
+        """Return current confidence probability."""
+        return self._confidence
+
+
+class ROLocker:
+    """Byzantine consensus Read-Only lock for node state transitions.
+
+    Prevents execution decay over long horizons by requiring a minimum
+    confidence threshold before allowing a node to be marked SUCCESS.
+    Nodes below the threshold are marked SUSPENDED for re-evaluation.
+
+    Part of the Swarm-Forge autonomous multi-agent orchestration framework.
+    """
+
+    _ALLOWED_TRANSITIONS: Final[frozenset[tuple[str, str]]] = frozenset({
+        ("pending", "running"),
+        ("running", "success"),
+        ("running", "failed"),
+        ("running", "suspended"),
+        ("suspended", "running"),
+        ("suspended", "failed"),
+    })
+
+    def __init__(self, confidence_threshold: float = 0.95) -> None:
+        """Initialize the RO lock.
+
+        Args:
+            confidence_threshold: Minimum confidence to allow SUCCESS transition.
+                Nodes below this are marked SUSPENDED instead.
+        """
+        self._threshold: float = confidence_threshold
+        self._belief_states: dict[str, BayesianBeliefState] = {}
+
+    def register_node(
+        self,
+        node_id: str,
+        initial_confidence: float = 0.5,
+    ) -> None:
+        """Register a DAG node with an initial belief state.
+
+        Args:
+            node_id: Unique node identifier.
+            initial_confidence: Starting confidence for this node.
+        """
+        self._belief_states[node_id] = BayesianBeliefState(
+            initial_value=node_id,
+            initial_confidence=initial_confidence,
+        )
+
+    def observe(self, node_id: str, output_value: str) -> None:
+        """Record a new execution observation for a node.
+
+        Args:
+            node_id: Node that produced the observation.
+            output_value: Observed output (e.g., stdout snippet or status).
+        """
+        if node_id in self._belief_states:
+            self._belief_states[node_id].observe(output_value)
+
+    def attempt_state_transition(
+        self,
+        node_id: str,
+        target_status: str,
+    ) -> str:
+        """Attempt to transition a node to a target status.
+
+        If target is ``STATUS_SUCCESS`` but confidence is below threshold,
+        returns ``"suspended"`` instead, preventing premature success marking.
+
+        Args:
+            node_id: Node requesting state transition.
+            target_status: The requested new status string.
+
+        Returns:
+            The actual status the node should be set to (may differ from target).
+        """
+        if target_status != STATUS_SUCCESS:
+            return target_status
+        belief = self._belief_states.get(node_id)
+        if belief is None:
+            return target_status
+        if belief.confidence >= self._threshold:
+            return STATUS_SUCCESS
+        logger.warning(
+            "ROLocker: node %s confidence %.3f below threshold %.3f — "
+            "marking SUSPENDED",
+            node_id,
+            belief.confidence,
+            self._threshold,
+        )
+        return "suspended"
+
+    def get_confidence(self, node_id: str) -> float:
+        """Get current confidence for a node (0.0 if unregistered).
+
+        Args:
+            node_id: Node identifier.
+
+        Returns:
+            Confidence probability between 0.0 and 1.0.
+        """
+        belief = self._belief_states.get(node_id)
+        return belief.confidence if belief else 0.0
 
 
 class DAGManager:

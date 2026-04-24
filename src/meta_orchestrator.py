@@ -25,6 +25,7 @@ Part of the Swarm-Forge autonomous multi-agent orchestration framework.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from datetime import datetime, timezone
@@ -39,6 +40,7 @@ from .memory_system import SynapticGarbageCollector
 from .mutex_storage import SynchronizedJSONStore
 from .otel_telemetry_logger import HPFELogger
 from .reward_judge import RewardSwarmJudge
+from .skill_synthesis import SkillSynthesisEngine
 from .zero_trust_firewall import AgentFirewall
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -80,6 +82,9 @@ class MetaOrchestrator:
         self._max_workers: int = max_workers
         self._reward_judge: RewardSwarmJudge = RewardSwarmJudge(use_opus=False)
         self._sgc: SynapticGarbageCollector = SynapticGarbageCollector()
+        self._skill_engine: SkillSynthesisEngine = SkillSynthesisEngine(
+            sandbox=self._sandbox
+        )
 
     # ── public ─────────────────────────────────────────────────────────────
 
@@ -276,6 +281,41 @@ class MetaOrchestrator:
                 RuntimeError(result.get("error", "unknown")),
                 {"result": result},
             )
+
+            # === TEST-TIME TOOL EVOLUTION (HERMES PARADIGM) ===
+            missing_capability: str = node.get("metadata", {}).get(
+                "missing_capability", ""
+            )
+            if missing_capability:
+                logger.info(
+                    "_execute_node: triggering SkillSynthesisEngine for "
+                    "node=%s capability=%r",
+                    node_id,
+                    missing_capability,
+                )
+                synth_success, skill_path, synth_error = asyncio.run(
+                    self._skill_engine.synthesize_on_demand(
+                        task_objective=missing_capability,
+                        node_id=node_id,
+                    )
+                )
+                if synth_success:
+                    logger.info(
+                        "_execute_node: skill synthesized at %s — "
+                        "retrying node %s",
+                        skill_path,
+                        node_id,
+                    )
+                    self._skill_engine.load_skill(skill_path)
+                    result["synthesized_skill"] = skill_path
+                    result["status"] = "retry_with_skill"
+                else:
+                    logger.warning(
+                        "_execute_node: skill synthesis failed for "
+                        "node=%s: %s",
+                        node_id,
+                        synth_error,
+                    )
             return result
 
         return result
