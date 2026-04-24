@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:BuildBackend"
+
+[project]
+name = "swarm-forge"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "Autonomous meta-orchestration engine for multi-agent DAG swarms"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
