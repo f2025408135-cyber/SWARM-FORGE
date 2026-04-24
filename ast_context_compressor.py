@@ -82,12 +82,6 @@ def parse_traceback_for_target(
 # AST node visitor
 # ---------------------------------------------------------------------------
 
-_ENCLOSING_NODE_TYPES = (
-    ast.FunctionDef,
-    ast.AsyncFunctionDef,
-    ast.ClassDef,
-)
-
 
 class EnclosingNodeVisitor(ast.NodeVisitor):
     """Walk the AST and find the tightest enclosing block for a target line.

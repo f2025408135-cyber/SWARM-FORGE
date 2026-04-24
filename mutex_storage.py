@@ -12,7 +12,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from filelock import FileLock, Timeout
 
@@ -78,7 +78,7 @@ class SynchronizedJSONStore:
 
     # -- public API ---------------------------------------------------------
 
-    def read(self) -> dict:
+    def read(self) -> dict[str, Any]:
         """Acquire the lock and return the JSON contents as a dictionary.
 
         Returns
@@ -101,7 +101,7 @@ class SynchronizedJSONStore:
 
             try:
                 raw: str = self._path.read_text(encoding="utf-8")
-                data: dict = json.loads(raw)
+                data: dict[str, Any] = json.loads(raw)
                 if not isinstance(data, dict):
                     logger.warning(
                         "Store root is %s, not dict — wrapping in dict",
@@ -121,7 +121,7 @@ class SynchronizedJSONStore:
 
     def transaction(
         self,
-        update_func: Callable[[dict], dict],
+        update_func: Callable[[dict[str, Any]], dict[str, Any]],
     ) -> bool:
         """Execute an **atomic** read-modify-write cycle.
 
@@ -158,7 +158,7 @@ class SynchronizedJSONStore:
             # ---- read ------------------------------------------------------
             try:
                 raw: str = self._path.read_text(encoding="utf-8")
-                state: dict = json.loads(raw)
+                state: dict[str, Any] = json.loads(raw)
                 if not isinstance(state, dict):
                     state = {"_value": state}
             except json.JSONDecodeError as exc:
@@ -171,7 +171,7 @@ class SynchronizedJSONStore:
 
             # ---- modify ----------------------------------------------------
             try:
-                new_state: dict = update_func(state)
+                new_state: dict[str, Any] = update_func(state)
             except Exception as exc:
                 logger.error(
                     "update_func raised %s: %s — aborting transaction",

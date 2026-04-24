@@ -55,6 +55,20 @@ class MissingDependencyError(Exception):
         super().__init__(message)
 
 
+class NodeCancelledError(RuntimeError):
+    """Raised when a node is cancelled due to an upstream failure.
+
+    Attributes
+    ----------
+    upstream_node_id:
+        The ``node_id`` of the node whose failure triggered cancellation.
+    """
+
+    def __init__(self, message: str, upstream_node_id: str = "") -> None:
+        self.upstream_node_id: str = upstream_node_id
+        super().__init__(message)
+
+
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
@@ -298,8 +312,9 @@ class ParallelDAGRunner:
                 target: TaskNode = self._dag.nodes[nid]
                 if target.status in (NodeStatus.PENDING, NodeStatus.RUNNING):
                     target.status = NodeStatus.CANCELLED
-                    self._results[nid] = RuntimeError(
-                        f"Cancelled: upstream node '{failed_node_id}' failed."
+                    self._results[nid] = NodeCancelledError(
+                        f"Cancelled: upstream node '{failed_node_id}' failed.",
+                        upstream_node_id=failed_node_id,
                     )
 
             for child in self._dag.successors(nid):
@@ -394,8 +409,9 @@ class ParallelDAGRunner:
                         if self._has_failed_dependency(s_node):
                             with self._lock:
                                 s_node.status = NodeStatus.CANCELLED
-                                self._results[successor_id] = RuntimeError(
-                                    f"Cancelled: upstream node '{nid}' failed."
+                                self._results[successor_id] = NodeCancelledError(
+                                    f"Cancelled: upstream node '{nid}' failed.",
+                                    upstream_node_id=nid,
                                 )
                             self._cancel_downstream(successor_id)
                             continue

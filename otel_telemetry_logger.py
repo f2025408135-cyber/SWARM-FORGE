@@ -29,11 +29,9 @@ class _SafeEncoder(json.JSONEncoder):
     """JSON encoder that converts non-serializable objects to their string
     representation instead of raising :class:`TypeError`."""
 
-    def default(self, o: Any) -> Any:  # noqa: D401
-        try:
-            return super().default(o)
-        except TypeError:
-            return str(o)
+    def default(self, o: Any) -> Any:
+        """Convert non-serializable objects to their string representation."""
+        return str(o)
 
 
 # ---------------------------------------------------------------------------
