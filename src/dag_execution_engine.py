@@ -263,7 +263,7 @@ class ParallelDAGRunner:
                         ).strip().lower()
                     if answer != "y":
                         submitted.add(node_id)
-                        self._manager.mark_complete(node_id, success=False)
+                        self._manager.abort_subtree(node_id)
                         node_results[node_id] = {
                             "status": STATUS_REJECTED,
                             "error": "boardroom_governance_rejected",

@@ -16,3 +16,5 @@ anthropic==0.39.0
 opentelemetry-api==1.27.0
 # .env loader so demo.py and tests can source ANTHROPIC_API_KEY locally.
 python-dotenv==1.0.1
+# Exact tokeniser for SynapticGarbageCollector budget math (cl100k_base).
+tiktoken>=0.6.0

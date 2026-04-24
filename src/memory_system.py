@@ -23,6 +23,12 @@ from typing import Final
 import anthropic
 from filelock import FileLock
 
+try:
+    import tiktoken
+    _TIKTOKEN_AVAILABLE = True
+except ImportError:
+    _TIKTOKEN_AVAILABLE = False
+
 logger: logging.Logger = logging.getLogger(__name__)
 
 MODEL_SONNET: Final[str] = "claude-sonnet-4-5"
@@ -70,7 +76,7 @@ class SynapticGarbageCollector:
 
         Args:
             token_threshold: Estimated-token budget. Compression fires when
-                ``len(file_content) // 4 >= token_threshold``.
+                ``self._estimate_tokens(file_content) >= token_threshold``.
             template_path: Path to the managed memory file. Relative paths are
                 resolved against the current working directory at call time.
         """
@@ -101,7 +107,7 @@ class SynapticGarbageCollector:
 
         with FileLock(lock_path):
             content: str = path.read_text(encoding="utf-8") if path.exists() else ""
-            estimated_tokens: int = len(content) // 4
+            estimated_tokens: int = self._estimate_tokens(content)
 
             if estimated_tokens >= self._token_threshold:
                 logger.info(
@@ -125,6 +131,24 @@ class SynapticGarbageCollector:
         )
 
     # ── private ────────────────────────────────────────────────────────────
+
+    def _estimate_tokens(self, content: str) -> int:
+        """Return an exact token count for *content* using tiktoken when available.
+
+        Falls back to the ``len(content) // 4`` heuristic only when the
+        ``tiktoken`` package is unavailable at import time. The cl100k_base
+        encoding is used because it is a close proxy for Anthropic tokenisation
+        and is stable across releases.
+
+        Args:
+            content: Raw text whose token footprint should be estimated.
+
+        Returns:
+            The token count (exact under tiktoken, approximate under fallback).
+        """
+        if _TIKTOKEN_AVAILABLE:
+            return len(tiktoken.get_encoding("cl100k_base").encode(content))
+        return len(content) // 4
 
     def _sawtooth_collapse(self, content: str) -> str:
         """Call the Anthropic Sonnet API to compress *content* into directives.
