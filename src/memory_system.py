@@ -23,6 +23,8 @@ from typing import Final
 import anthropic
 from filelock import FileLock
 
+from .agent_guard import CognitiveFirewall
+
 try:
     import tiktoken
     _TIKTOKEN_AVAILABLE = True
@@ -83,6 +85,7 @@ class SynapticGarbageCollector:
         self._token_threshold: int = token_threshold
         self._template_path: str = template_path
         self._client: anthropic.Anthropic | None = None
+        self._cognitive_firewall: CognitiveFirewall = CognitiveFirewall()
 
     # ── public ─────────────────────────────────────────────────────────────
 
@@ -102,6 +105,15 @@ class SynapticGarbageCollector:
             node_id: DAG node identifier used to label the directive entry.
             error_trace: Compressed error/analysis text to persist.
         """
+        tainted, reason = self._cognitive_firewall.is_tainted(error_trace)
+        if tainted:
+            logger.warning(
+                "SGC: memory trace quarantined by CognitiveFirewall — node=%s reason=%s",
+                node_id,
+                reason,
+            )
+            return
+
         path: Path = Path(self._template_path)
         lock_path: str = str(path) + ".lock"
 

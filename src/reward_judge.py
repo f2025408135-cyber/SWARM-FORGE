@@ -149,7 +149,11 @@ class RewardSwarmJudge:
                     ],
                 )
                 response_text = response.content[0].text.strip()
-                data: dict[str, object] = json.loads(response_text)
+                parse_text = response_text
+                if parse_text.startswith("```"):
+                    parse_text = parse_text.split("\n", 1)[1]
+                    parse_text = parse_text.rsplit("```", 1)[0].strip()
+                data: dict[str, object] = json.loads(parse_text)
                 passed: bool = bool(data.get("score", 0) == 1)
                 critique: str = str(data.get("critique", ""))
                 return passed, critique

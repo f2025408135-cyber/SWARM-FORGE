@@ -1,0 +1,10 @@
+{
+  "algorithm": "none",
+  "none_algorithm_detected": true,
+  "payload_keys": [
+    "sub",
+    "role",
+    "exp"
+  ],
+  "exp_present": true
+}

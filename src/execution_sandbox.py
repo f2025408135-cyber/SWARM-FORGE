@@ -24,12 +24,15 @@ import tempfile
 import textwrap
 from typing import Any, Final
 
+from .agent_guard import verify_agent_action
+
 logger: logging.Logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT_SEC: Final[int] = 120
 TEMP_SCRIPT_SUFFIX: Final[str] = ".py"
 STATUS_SUCCESS: Final[str] = "success"
 STATUS_ERROR: Final[str] = "error"
+STATUS_BLOCKED: Final[str] = "blocked"
 
 
 class SandboxExecutor:
@@ -61,6 +64,19 @@ class SandboxExecutor:
             A dict with keys ``status``, ``output``, and ``error``.
         """
         script: str = self._build_script(node_id, task_description, context)
+
+        is_safe, reason = verify_agent_action(script)
+        if not is_safe:
+            logger.warning(
+                "Node %s blocked by AgentGuard Layer 3: %s", node_id, reason
+            )
+            return {
+                "status": STATUS_BLOCKED,
+                "output": f"AgentGuard Layer 3 blocked: {reason}",
+                "error": reason,
+                "returncode": -1,
+            }
+
         try:
             stdout: str = self._run_subprocess(script, timeout_sec)
             return {"status": STATUS_SUCCESS, "output": stdout, "error": None}

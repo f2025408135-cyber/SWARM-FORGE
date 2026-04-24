@@ -15,6 +15,12 @@ Part of the Swarm-Forge autonomous multi-agent orchestration framework.
 """
 from __future__ import annotations
 
+from .agent_guard import (
+    ActionFirewallVisitor,
+    CognitiveFirewall,
+    GeometricDOMSanitizer,
+    verify_agent_action,
+)
 from .ast_context_compressor import ASTContextCompressor
 from .dag_execution_engine import (
     BayesianBeliefState,
@@ -35,13 +41,16 @@ from .zero_trust_firewall import AgentFirewall
 
 __all__: list[str] = [
     "ASTContextCompressor",
+    "ActionFirewallVisitor",
     "AgentFirewall",
     "BayesianBeliefState",
+    "CognitiveFirewall",
     "DAGManager",
     "DagMetadata",
     "DagNode",
     "DagPlan",
     "DriftDetector",
+    "GeometricDOMSanitizer",
     "HPFELogger",
     "MetaOrchestrator",
     "ParallelDAGRunner",
@@ -52,4 +61,5 @@ __all__: list[str] = [
     "SynchronizedJSONStore",
     "SynapticGarbageCollector",
     "plan_dag",
+    "verify_agent_action",
 ]

