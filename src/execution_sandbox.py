@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -30,6 +31,8 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT_SEC: Final[int] = 120
 TEMP_SCRIPT_SUFFIX: Final[str] = ".py"
+TEMP_SCRIPT_FILENAME: Final[str] = "node_script.py"
+TEMP_DIR_PREFIX: Final[str] = "swarmforge_sandbox_"
 STATUS_SUCCESS: Final[str] = "success"
 STATUS_ERROR: Final[str] = "error"
 STATUS_BLOCKED: Final[str] = "blocked"
@@ -117,11 +120,17 @@ class SandboxExecutor:
         Returns:
             Source code for the temporary script.
         """
+        # IMPORTANT: context may contain Python booleans / None. json.dumps
+        # produces JSON literals ``true``/``false``/``null`` which are NOT
+        # valid Python when spliced into source code. ``repr`` on a
+        # JSON-serialisable dict round-trips through a json.loads() call so
+        # the generated script is always syntactically valid Python.
+        context_json: str = json.dumps(context)
         return textwrap.dedent(f"""\
             import json, sys
             node_id = {json.dumps(node_id)}
             task = {json.dumps(task_description)}
-            context = {json.dumps(context)}
+            context = json.loads({json.dumps(context_json)})
             result = {{
                 "node_id": node_id,
                 "task": task,
@@ -132,6 +141,12 @@ class SandboxExecutor:
 
     def _run_subprocess(self, script: str, timeout_sec: int) -> str:
         """Write *script* to a temp file, execute it, and return stripped stdout.
+
+        Uses :func:`tempfile.mkdtemp` + :func:`shutil.rmtree` so that the
+        entire scratch directory is torn down even if individual files (a
+        ``.pyc`` cache, a stray temp file written by the child) resist a
+        single ``os.unlink`` call. This prevents disk accumulation across
+        hundreds of parallel runs.
 
         Args:
             script: Python source to execute.
@@ -144,9 +159,10 @@ class SandboxExecutor:
             subprocess.CalledProcessError: If the subprocess exits non-zero.
             subprocess.TimeoutExpired: If the subprocess exceeds the timeout.
         """
-        fd, tmp_path = tempfile.mkstemp(suffix=TEMP_SCRIPT_SUFFIX)
+        tmp_dir: str = tempfile.mkdtemp(prefix=TEMP_DIR_PREFIX)
+        tmp_path: str = os.path.join(tmp_dir, TEMP_SCRIPT_FILENAME)
         try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            with open(tmp_path, "w", encoding="utf-8") as fh:
                 fh.write(script)
             proc = subprocess.run(
                 [sys.executable, tmp_path],
@@ -160,7 +176,4 @@ class SandboxExecutor:
                 )
             return proc.stdout.strip()
         finally:
-            try:
-                os.unlink(tmp_path)
-            except OSError as exc:
-                logger.warning("Failed to unlink temp script %s: %s", tmp_path, exc)
+            shutil.rmtree(tmp_dir, ignore_errors=True)

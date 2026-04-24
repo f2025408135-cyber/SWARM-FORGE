@@ -21,6 +21,13 @@ logger: logging.Logger = logging.getLogger(__name__)
 BANNED_MODULES: Final[frozenset[str]] = frozenset({
     "requests", "urllib", "urllib3", "socket", "http", "ftplib",
     "telnetlib", "paramiko", "asyncio.streams", "aiohttp", "httpx",
+    # Bypass-vector expansion (Platinum hardening v2.0):
+    # - builtins   : direct access to open(), __import__, etc.
+    # - io         : io.FileIO opens arbitrary file descriptors.
+    # - ctypes     : loads native shared libraries for arbitrary code execution.
+    # - pickle     : pickle.loads is arbitrary code execution.
+    # - importlib  : dynamic module loading circumvents static import checks.
+    "builtins", "io", "ctypes", "pickle", "importlib",
 })
 
 BANNED_FUNCTIONS: Final[frozenset[str]] = frozenset({
@@ -154,6 +161,11 @@ class ActionFirewallVisitor(ast.NodeVisitor):
                 f"Interactive I/O primitive blocked: {func_name}"
             )
 
+        # Block calls whose *arguments* contain a literal string naming a
+        # dynamic-eval primitive, e.g. ``vars()['__builtins__']['__import__']``
+        # or ``getattr(obj, '__import__')`` spelled via a different verb.
+        self._check_arg_strings_for_eval_primitives(node)
+
         if func_name == "getattr" and len(node.args) >= 2:
             attr_arg = node.args[1]
             if isinstance(attr_arg, ast.Constant) and isinstance(
@@ -174,6 +186,47 @@ class ActionFirewallVisitor(ast.NodeVisitor):
                 raise SecurityViolation(f"Banned function call: {func_name}")
 
         self.generic_visit(node)
+
+    def visit_Subscript(self, node: ast.Subscript) -> None:
+        """Block ``obj['__import__']`` / ``vars()['__builtins__']`` reflection.
+
+        The AST firewall cannot trace arbitrary dict lookups, but a string
+        literal slice that names a banned dunder or dynamic-eval primitive is
+        an unambiguous signal of reflective sandbox escape.
+        """
+        slice_node = node.slice
+        if isinstance(slice_node, ast.Constant) and isinstance(
+            slice_node.value, str
+        ):
+            key = slice_node.value
+            if key in BANNED_DUNDERS or key in DYNAMIC_EVAL_PRIMITIVES:
+                raise SecurityViolation(
+                    f"Reflective subscript access blocked: [{key!r}]"
+                )
+        self.generic_visit(node)
+
+    def _check_arg_strings_for_eval_primitives(self, node: ast.Call) -> None:
+        """Reject a Call whose literal string args name a dynamic-eval primitive.
+
+        Defeats constructs like ``some_func('__import__')`` where a generic
+        helper is being coerced into dispatching into ``__import__`` / ``eval``
+        / ``exec`` / ``compile`` indirectly.
+        """
+        for arg in node.args:
+            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                if arg.value in DYNAMIC_EVAL_PRIMITIVES:
+                    raise SecurityViolation(
+                        f"String-literal eval primitive blocked: {arg.value!r}"
+                    )
+        for kw in node.keywords:
+            if isinstance(kw.value, ast.Constant) and isinstance(
+                kw.value.value, str
+            ):
+                if kw.value.value in DYNAMIC_EVAL_PRIMITIVES:
+                    raise SecurityViolation(
+                        f"String-literal eval primitive blocked in kwarg "
+                        f"{kw.arg}={kw.value.value!r}"
+                    )
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
         """Block dunder attribute chains (``__class__.__bases__`` etc.).

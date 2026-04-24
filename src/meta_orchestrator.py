@@ -324,7 +324,10 @@ class MetaOrchestrator:
 
         Returns:
             The canonical sandbox result dict, with ``status == "error"`` if
-            the reward judge rejects the stdout.
+            the reward judge rejects the stdout. On sandbox timeout the
+            error field is enriched with ``TIMEOUT: {Ns} exceeded limit``
+            context and routed through the judge for intelligent diagnosis
+            (the judge sees the partial output instead of an opaque error).
         """
         result: dict[str, Any] = self._sandbox.execute(
             node_id,
@@ -332,6 +335,7 @@ class MetaOrchestrator:
             sandbox_context,
             timeout_sec=timeout_sec,
         )
+
         if result.get("status") == "success":
             passed, critique = self._reward_judge.judge(
                 stdout=result.get("output", ""),
@@ -343,6 +347,33 @@ class MetaOrchestrator:
                 result["error"] = (
                     f"[SEMANTIC FAILURE] {critique}\n{existing_error}"
                 ).strip()
+            return result
+
+        # Timeout diagnosis: invoke the judge on whatever partial stdout the
+        # subprocess managed to emit before the wall-clock cutoff, and
+        # enrich the error field so the HEALING path and the immunity
+        # lesson carry the concrete limit that was exceeded.
+        if result.get("error") == "execution_timeout":
+            timeout_context: str = f"TIMEOUT: {timeout_sec}s exceeded limit"
+            partial_stdout: str = result.get("output", "") or ""
+            try:
+                _, critique = self._reward_judge.judge(
+                    stdout=partial_stdout,
+                    task_description=(
+                        f"{task_description}\n\n[DIAGNOSIS CONTEXT] "
+                        f"{timeout_context}"
+                    ),
+                )
+            except Exception as exc:  # noqa: BLE001 — diagnostic is best-effort
+                logger.warning(
+                    "Judge diagnosis on timeout failed for node %s: %s",
+                    node_id,
+                    exc,
+                )
+                critique = ""
+            result["error"] = (
+                f"{timeout_context} | {critique}" if critique else timeout_context
+            )
         return result
 
     def _attempt_stateful_healing(

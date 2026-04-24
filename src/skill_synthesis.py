@@ -30,6 +30,13 @@ logger: logging.Logger = logging.getLogger(__name__)
 SKILLS_DIR: Final[str] = "swarm_skills"
 MODEL_SYNTHESIS: Final[str] = "claude-sonnet-4-5"
 MAX_SYNTHESIS_TOKENS: Final[int] = 2048
+SYNTHESIS_SYSTEM_PROMPT: Final[str] = (
+    "You are an expert Python 3.12 code synthesizer. "
+    "Given a task objective, output ONLY valid Python 3.12 code "
+    "followed by a separator line '# ---TESTS---' and then "
+    "assert statements that verify the solution. "
+    "Do not use markdown. Do not explain. Output raw Python only."
+)
 BLOCKED_AST_CALLS: Final[frozenset[str]] = frozenset({
     "os.system", "os.popen", "subprocess.Popen", "subprocess.call",
     "subprocess.run", "eval", "exec", "compile", "__import__",
@@ -159,34 +166,72 @@ class SkillSynthesisEngine:
             task_objective[:80],
         )
 
+        first_attempt = await self._attempt_synthesis(task_objective, prior_error="")
+        if first_attempt.get("ok"):
+            return True, first_attempt["skill_path"], ""
+
+        # Single retry: feed the previous failure back to the model so it can
+        # correct the concrete bug (syntax error, missing separator, unsafe
+        # AST). Retry does NOT loop — one corrective attempt is enough.
+        prior_error: str = first_attempt.get("error", "")
+        logger.info(
+            "SkillSynthesisEngine: retrying synthesis with error context: %s",
+            prior_error[:120],
+        )
+        second_attempt = await self._attempt_synthesis(
+            task_objective, prior_error=prior_error
+        )
+        if second_attempt.get("ok"):
+            return True, second_attempt["skill_path"], ""
+        return False, "", second_attempt.get("error", "synthesis failed")
+
+    async def _attempt_synthesis(
+        self,
+        task_objective: str,
+        prior_error: str,
+    ) -> dict[str, str | bool]:
+        """Run one synthesis attempt end-to-end.
+
+        Args:
+            task_objective: Capability description passed to the model.
+            prior_error: Non-empty string on a retry attempt — contains the
+                concrete failure mode from the prior attempt so the model
+                can correct it. Empty string on the first attempt.
+
+        Returns:
+            ``{"ok": True, "skill_path": "<path>"}`` on success, or
+            ``{"ok": False, "error": "<reason>"}`` on failure.
+        """
+        user_content: str = f"TASK OBJECTIVE:\n{task_objective}"
+        if prior_error:
+            user_content = (
+                f"{user_content}\n\n"
+                f"The previous attempt failed with: {prior_error}\n"
+                "Generate a corrected version."
+            )
+
         try:
             response = self._client.messages.create(
                 model=MODEL_SYNTHESIS,
                 max_tokens=MAX_SYNTHESIS_TOKENS,
                 system=[{
                     "type": "text",
-                    "text": (
-                        "You are an expert Python 3.12 code synthesizer. "
-                        "Given a task objective, output ONLY valid Python 3.12 code "
-                        "followed by a separator line '# ---TESTS---' and then "
-                        "assert statements that verify the solution. "
-                        "Do not use markdown. Do not explain. Output raw Python only."
-                    ),
+                    "text": SYNTHESIS_SYSTEM_PROMPT,
                     "cache_control": {"type": "ephemeral"},
                 }],
-                messages=[{
-                    "role": "user",
-                    "content": f"TASK OBJECTIVE:\n{task_objective}",
-                }],
+                messages=[{"role": "user", "content": user_content}],
             )
             raw_output = response.content[0].text.strip()
         except anthropic.APIError as exc:
             logger.error("SkillSynthesisEngine: LLM call failed: %s", exc)
-            return False, "", f"LLM synthesis failed: {exc}"
+            return {"ok": False, "error": f"LLM synthesis failed: {exc}"}
 
         separator = "# ---TESTS---"
         if separator not in raw_output:
-            return False, "", f"LLM did not include '{separator}' separator in output."
+            return {
+                "ok": False,
+                "error": f"LLM did not include '{separator}' separator in output.",
+            }
         code_part, _, test_part = raw_output.partition(separator)
         code_part = code_part.strip()
         test_part = test_part.strip()
@@ -194,12 +239,13 @@ class SkillSynthesisEngine:
         try:
             is_safe, reason = self._block_destructive_ast(code_part)
         except SyntaxError as exc:
-            return False, "", f"Generated code has syntax error: {exc}"
+            return {"ok": False, "error": f"Generated code has syntax error: {exc}"}
         if not is_safe:
-            return False, "", f"AST safety violation: {reason}"
+            return {"ok": False, "error": f"AST safety violation: {reason}"}
 
         full_script = code_part + "\n\n" + test_part
-        skill_name = f"skill_{node_id}_{int(time.time())}"
+        node_slug: str = f"retry_{int(time.time())}" if prior_error else f"{int(time.time())}"
+        skill_name = f"skill_{node_slug}"
         tmp_path = self._skills_dir / f"{skill_name}_tmp.py"
         tmp_path.write_text(full_script, encoding="utf-8")
 
@@ -209,10 +255,13 @@ class SkillSynthesisEngine:
         tmp_path.unlink(missing_ok=True)
 
         if not result.get("valid", False):
-            return False, "", (
-                f"Sandbox syntax validation failed: "
-                f"{result.get('error', 'unknown')}"
-            )
+            return {
+                "ok": False,
+                "error": (
+                    f"Sandbox syntax validation failed: "
+                    f"{result.get('error', 'unknown')}"
+                ),
+            }
 
         final_code = self._format_skill_with_sok_taxonomy(
             skill_name=skill_name,
@@ -224,7 +273,7 @@ class SkillSynthesisEngine:
         skill_path = self._skills_dir / f"{skill_name}.py"
         skill_path.write_text(final_code, encoding="utf-8")
         logger.info("SkillSynthesisEngine: skill persisted at %s", skill_path)
-        return True, str(skill_path), ""
+        return {"ok": True, "skill_path": str(skill_path)}
 
     def _validate_script_syntax(self, script_path: str) -> dict[str, object]:
         """Compile a persisted script and return a validity verdict.

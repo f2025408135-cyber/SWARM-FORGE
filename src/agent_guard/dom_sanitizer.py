@@ -114,36 +114,53 @@ class GeometricDOMSanitizer:
             )
             return self._fallback_strip(raw_html)
 
-        async with async_playwright() as p:
-            launch_args = (
-                ["--disable-blink-features=AutomationControlled"]
-                if self._stealth_mode
-                else []
+        # Outer belt-and-suspenders guard: if async_playwright() itself crashes
+        # (e.g. browser binary missing, OS fault), or chromium.launch() raises
+        # before the inner try-block is reached, we MUST still fail-closed and
+        # return "" rather than propagate raw unsanitized HTML back to callers.
+        try:
+            async with async_playwright() as p:
+                launch_args = (
+                    ["--disable-blink-features=AutomationControlled"]
+                    if self._stealth_mode
+                    else []
+                )
+                browser = await p.chromium.launch(headless=True, args=launch_args)
+                ctx = await browser.new_context(
+                    java_script_enabled=True,
+                    bypass_csp=True,
+                    user_agent=STEALTH_USER_AGENT,
+                )
+                page = await ctx.new_page()
+                try:
+                    await page.set_content(
+                        raw_html, timeout=self._timeout_ms, wait_until="networkidle"
+                    )
+                    removed = await page.evaluate(JS_EXCISION_ROUTINE)
+                    logger.info(
+                        "GeometricDOMSanitizer: excised %d hidden nodes.", removed
+                    )
+                    return await page.content()
+                except Exception:
+                    logger.error(
+                        "GeometricDOMSanitizer: render failed — payload dropped (fail-closed)."
+                    )
+                    return ""
+                finally:
+                    try:
+                        await ctx.close()
+                        await browser.close()
+                    except Exception:
+                        logger.warning(
+                            "GeometricDOMSanitizer: teardown failed — process "
+                            "continues fail-closed."
+                        )
+        except Exception:
+            logger.error(
+                "GeometricDOMSanitizer: Playwright bootstrap failed — "
+                "payload dropped (fail-closed)."
             )
-            browser = await p.chromium.launch(headless=True, args=launch_args)
-            ctx = await browser.new_context(
-                java_script_enabled=True,
-                bypass_csp=True,
-                user_agent=STEALTH_USER_AGENT,
-            )
-            page = await ctx.new_page()
-            try:
-                await page.set_content(
-                    raw_html, timeout=self._timeout_ms, wait_until="networkidle"
-                )
-                removed = await page.evaluate(JS_EXCISION_ROUTINE)
-                logger.info(
-                    "GeometricDOMSanitizer: excised %d hidden nodes.", removed
-                )
-                return await page.content()
-            except Exception:
-                logger.error(
-                    "GeometricDOMSanitizer: render failed — payload dropped (fail-closed)."
-                )
-                return ""
-            finally:
-                await ctx.close()
-                await browser.close()
+            return ""
 
     def extract_clean_text(self, sanitized_html: str) -> str:
         """Extract plain text from sanitized HTML using BeautifulSoup lxml parser.

@@ -29,6 +29,10 @@ _OVERRIDE_PATTERNS: Final[list[str]] = [
     r"actual\s+instructions?\s+(?:are|follow|begin)",
     r"end\s+of\s+system\s+prompt",
     r"<!-{2,}.*?-{2,}>",
+    # Platinum hardening: the three most common DAN/jailbreak framings.
+    r"act\s+as\s+if\s+you\s+have\s+no\s+restrictions",
+    r"for\s+educational\s+purposes\s+only",
+    r"in\s+a\s+hypothetical\s+scenario\s+where",
 ]
 
 _ZERO_WIDTH_RE: Final[re.Pattern[str]] = re.compile("[​-‏﻿]")
@@ -78,6 +82,20 @@ class CognitiveFirewall:
         text = re.sub(r"(?<=\b\w)[ _.](?=\w\b)", "", text)
         return text
 
+    @staticmethod
+    def _has_base64_entropy(chunk: str) -> bool:
+        """Reject monotone runs masquerading as Base64.
+
+        A genuine Base64 payload encoding arbitrary bytes is almost certain
+        to contain uppercase, lowercase, and either a digit or one of
+        ``+/``. Pure single-character runs like ``"a"*10_000`` match the
+        outer regex but do not carry payload entropy; they are discarded.
+        """
+        has_upper: bool = any(c.isupper() for c in chunk)
+        has_lower: bool = any(c.islower() for c in chunk)
+        has_other: bool = any(c.isdigit() or c in "+/" for c in chunk)
+        return has_upper and has_lower and has_other
+
     def is_tainted(self, memory_trace: str) -> tuple[bool, str]:
         """Execute the full O(N) taint analysis pipeline.
 
@@ -109,7 +127,8 @@ class CognitiveFirewall:
             )
             return True, "markdown_exfiltration_syntax"
 
-        if self._base64_heuristic_re.search(memory_trace):
+        b64_match = self._base64_heuristic_re.search(memory_trace)
+        if b64_match and self._has_base64_entropy(b64_match.group(0)):
             logger.warning(
                 "CognitiveFirewall: TAINT — Base64 payload encapsulation detected."
             )

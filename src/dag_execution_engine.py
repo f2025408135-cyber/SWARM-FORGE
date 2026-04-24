@@ -34,9 +34,15 @@ STATUS_FAILED: Final[str] = "failed"
 STATUS_SKIPPED: Final[str] = "skipped"
 STATUS_ERROR: Final[str] = "error"
 STATUS_REJECTED: Final[str] = "rejected"
+STATUS_SUSPICIOUS: Final[str] = "suspicious"
 _TERMINAL_STATUSES: Final[frozenset[str]] = frozenset(
     {STATUS_SUCCESS, STATUS_FAILED, STATUS_SKIPPED}
 )
+# Keys that any canonical worker result MUST supply. A worker that returns a
+# dict missing these is Byzantine — we treat it as STATUS_SUSPICIOUS so the
+# result is both isolated from the downstream DAG AND surfaced as distinct
+# from an ordinary STATUS_FAILED so operators can investigate.
+_REQUIRED_RESULT_KEYS: Final[frozenset[str]] = frozenset({"status"})
 
 _NodeStatus = str
 
@@ -191,6 +197,38 @@ class ROLocker:
         """
         belief = self._belief_states.get(node_id)
         return belief.confidence if belief else 0.0
+
+    @staticmethod
+    def validate_result(result: object) -> tuple[bool, str]:
+        """Structurally validate a worker-returned result before consensus.
+
+        Byzantine workers may return garbage (non-dict, missing ``status``,
+        wrong value types). Those results must be *quarantined* rather than
+        fed into the belief state — otherwise a malicious worker can drive
+        the belief state to high confidence on payloads the DAG never
+        actually produced.
+
+        Args:
+            result: Raw object returned by a worker future.
+
+        Returns:
+            Tuple of (valid: bool, reason: str). Valid when *result* is a
+            dict containing every member of :data:`_REQUIRED_RESULT_KEYS`
+            and the value of ``status`` is a string.
+        """
+        if not isinstance(result, dict):
+            return False, (
+                f"result is not a dict (got {type(result).__name__})"
+            )
+        missing: set[str] = _REQUIRED_RESULT_KEYS - set(result.keys())
+        if missing:
+            return False, f"result missing required keys: {sorted(missing)}"
+        if not isinstance(result.get("status"), str):
+            return False, (
+                f"result['status'] is not a string "
+                f"(got {type(result.get('status')).__name__})"
+            )
+        return True, ""
 
 
 class DAGManager:
@@ -386,6 +424,7 @@ class ParallelDAGRunner:
         self._executor_fn: Callable[[dict[str, Any]], dict[str, Any]] = executor_fn
         self.max_workers: int = max_workers
         self._governance_lock: threading.Lock = threading.Lock()
+        self._ro_locker: ROLocker = ROLocker()
 
     def run(self) -> dict[str, dict[str, Any]]:
         """Drain the DAG in parallel and return every node's result.
@@ -437,13 +476,68 @@ class ParallelDAGRunner:
                 )
                 for future in done:
                     node_id: str = futures.pop(future)
-                    result: dict[str, Any] = future.result()
+                    result: dict[str, Any] = self._resolve_future(future, node_id)
                     success: bool = result.get("status") == STATUS_SUCCESS
                     self._manager.mark_complete(node_id, success)
                     node_results[node_id] = result
                 enqueue_ready(executor)
 
         return node_results
+
+    def _resolve_future(
+        self,
+        future: concurrent.futures.Future[dict[str, Any]],
+        node_id: str,
+    ) -> dict[str, Any]:
+        """Resolve a completed future into a canonical result dict.
+
+        Two failure modes are guarded here:
+
+        * The future itself raises (cancellation, BrokenExecutor, a crash
+          inside ``_run_node`` that slipped past its own bare ``except``).
+          We catch anything, log the traceback, and synthesize a
+          :data:`STATUS_ERROR` result so the DAG is NEVER left in a zombie
+          state where a node is marked running forever.
+        * The future returns a result that does not match the canonical
+          schema (Byzantine worker, monkey-patched executor, wrong type).
+          The :class:`ROLocker` quarantines it as :data:`STATUS_SUSPICIOUS`
+          so operators can distinguish "well-formed failure" from "the
+          worker returned garbage".
+
+        Args:
+            future: The completed future.
+            node_id: Node the future corresponds to (for logging only).
+
+        Returns:
+            A canonical result dict with at minimum a ``status`` key.
+        """
+        try:
+            result: object = future.result()
+        except Exception as exc:  # noqa: BLE001 — zombie-proof
+            logger.exception(
+                "Worker future for node %s raised an unhandled exception",
+                node_id,
+            )
+            return {
+                "status": STATUS_ERROR,
+                "error": f"unhandled_worker_exception: {exc}",
+                "node_id": node_id,
+            }
+
+        valid, reason = self._ro_locker.validate_result(result)
+        if not valid:
+            logger.warning(
+                "ROLocker quarantine: node=%s reason=%s — marking SUSPICIOUS",
+                node_id,
+                reason,
+            )
+            return {
+                "status": STATUS_SUSPICIOUS,
+                "error": f"byzantine_worker_result: {reason}",
+                "node_id": node_id,
+                "raw_result": repr(result)[:500],
+            }
+        return result  # type: ignore[return-value]
 
     def _run_node(self, node: dict[str, Any]) -> dict[str, Any]:
         """Invoke the user executor and convert any exception to an error result.

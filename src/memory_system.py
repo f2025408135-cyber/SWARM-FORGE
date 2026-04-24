@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Final
@@ -36,6 +37,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 MODEL_SONNET: Final[str] = "claude-sonnet-4-5"
 MAX_TOKENS_COMPRESS: Final[int] = 2048
 ENV_API_KEY: Final[str] = "ANTHROPIC_API_KEY"
+COMPRESSION_MAX_ATTEMPTS: Final[int] = 3
 
 DIRECTIVE_OPEN: Final[str] = "{# DIRECTIVE BLOCK — IMMUNITY LESSON\n"
 DIRECTIVE_CLOSE: Final[str] = "END DIRECTIVE BLOCK #}\n"
@@ -165,44 +167,74 @@ class SynapticGarbageCollector:
     def _sawtooth_collapse(self, content: str) -> str:
         """Call the Anthropic Sonnet API to compress *content* into directives.
 
-        Fail-open: if the API call fails for any reason, the original content
-        is returned unchanged so the new trace can still be appended safely.
+        Retries the API call up to :data:`COMPRESSION_MAX_ATTEMPTS` times
+        (wall-clock backoff ``2**attempt`` s: 2s / 4s / 8s) before giving up.
+        After exhausting retries, the original content is returned unchanged
+        and a CRITICAL log record is emitted so operators can investigate —
+        the trace the caller is about to append is NOT discarded, but the
+        sawtooth collapse is logged as skipped rather than silently lost.
 
         Args:
             content: Full text of the memory file before compression.
 
         Returns:
-            Compressed markdown from the API, or *content* unchanged on error.
+            Compressed markdown from the API, or *content* unchanged on
+            final retry exhaustion.
         """
-        try:
-            client: anthropic.Anthropic = self._get_client()
-            response = client.messages.create(
-                model=MODEL_SONNET,
-                max_tokens=MAX_TOKENS_COMPRESS,
-                system=[
-                    {
-                        "type": "text",
-                        "text": _COMPRESSION_SYSTEM,
-                        "cache_control": {"type": "ephemeral"},
-                    }
-                ],
-                messages=[{"role": "user", "content": content}],
-            )
-            compressed: str = response.content[0].text.strip()
-            logger.debug(
-                "SGC compressed %d chars → %d chars", len(content), len(compressed)
-            )
-            return compressed + "\n"
-        except anthropic.APIError as exc:
-            logger.warning(
-                "SGC Sawtooth Collapse API error — skipping compression: %s", exc
-            )
-            return content
-        except Exception as exc:
-            logger.warning(
-                "SGC Sawtooth Collapse unexpected error — skipping compression: %s", exc
-            )
-            return content
+        last_exc: Exception | None = None
+        for attempt in range(COMPRESSION_MAX_ATTEMPTS):
+            try:
+                client: anthropic.Anthropic = self._get_client()
+                response = client.messages.create(
+                    model=MODEL_SONNET,
+                    max_tokens=MAX_TOKENS_COMPRESS,
+                    system=[
+                        {
+                            "type": "text",
+                            "text": _COMPRESSION_SYSTEM,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                    messages=[{"role": "user", "content": content}],
+                )
+                compressed: str = response.content[0].text.strip()
+                logger.debug(
+                    "SGC compressed %d chars → %d chars",
+                    len(content),
+                    len(compressed),
+                )
+                return compressed + "\n"
+            except (anthropic.APIError, anthropic.RateLimitError) as exc:
+                last_exc = exc
+                backoff: int = 2 ** (attempt + 1)
+                logger.warning(
+                    "SGC Sawtooth Collapse API error (attempt %d/%d) — "
+                    "retrying in %ds: %s",
+                    attempt + 1,
+                    COMPRESSION_MAX_ATTEMPTS,
+                    backoff,
+                    exc,
+                )
+                if attempt + 1 < COMPRESSION_MAX_ATTEMPTS:
+                    time.sleep(backoff)
+            except Exception as exc:
+                # Non-transient errors (malformed response, pydantic mismatch,
+                # etc.) are not worth retrying — log and fall back.
+                logger.warning(
+                    "SGC Sawtooth Collapse non-transient error — skipping "
+                    "compression: %s",
+                    exc,
+                )
+                return content
+
+        logger.critical(
+            "SGC Sawtooth Collapse ABANDONED after %d attempts. The memory "
+            "trace will still be appended, but the file has NOT been "
+            "compressed and will continue to grow. Last error: %s",
+            COMPRESSION_MAX_ATTEMPTS,
+            last_exc,
+        )
+        return content
 
     def _get_client(self) -> anthropic.Anthropic:
         """Return the cached Anthropic client, constructing it on first call.
