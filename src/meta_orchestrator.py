@@ -32,6 +32,7 @@ from execution_sandbox import SandboxExecutor
 from mutex_storage import SynchronizedJSONStore
 from otel_telemetry_logger import HPFELogger
 from zero_trust_firewall import AgentFirewall
+from src.reward_judge import RewardSwarmJudge
 
 logger = logging.getLogger("swarmforge.orchestrator")
 
@@ -48,6 +49,7 @@ class MetaOrchestrator:
         self._drift = DriftDetector()
         self._compressor = ASTContextCompressor()
         self._max_workers = max_workers
+        self._reward_judge = RewardSwarmJudge(use_opus=False)
 
     # ── public ─────────────────────────────────────────────────────────────
 
@@ -183,6 +185,15 @@ class MetaOrchestrator:
                 {"dag_metadata": dag.get("metadata", {})},
                 timeout_sec=timeout_sec,
             )
+            # === SEMANTIC REWARD JUDGE ===
+            if result.get("status") == "success":
+                passed, critique = self._reward_judge.judge(
+                    stdout=result.get("output", ""),
+                    task_description=node.get("task_description", ""),
+                )
+                if not passed:
+                    result["status"] = "error"
+                    result["error"] = f"[SEMANTIC FAILURE] {critique}\n" + result.get("error", "")
         except Exception as exc:
             compressed = self._compressor.compress_error(exc)
             self._otel.log_failure(node_id, exc, {"node": node, "trace": compressed})
