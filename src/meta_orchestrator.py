@@ -25,13 +25,14 @@ Part of the Swarm-Forge autonomous multi-agent orchestration framework.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from typing import Any
 
 from .ast_context_compressor import ASTContextCompressor
+from .async_bridge import AsyncBridge
 from .dag_execution_engine import DAGManager, ParallelDAGRunner
 from .dag_planner import plan_dag
 from .drift_metrics import DriftDetector
@@ -57,6 +58,12 @@ STATUS_PARTIAL: str = "partial"
 STATUS_FAILED: str = "failed"
 STATUS_BLOCKED: str = "blocked"
 STATUS_PLANNING_FAILED: str = "planning_failed"
+STATUS_HEALED: str = "healed"
+STATUS_FAILED_AFTER_HEAL: str = "failed_after_heal"
+
+HEALING_TIMEOUT_ENV: str = "SWARMFORGE_HEALING_TIMEOUT_SEC"
+HEALING_ENABLED_ENV: str = "SWARMFORGE_ENABLE_HEALING"
+DEFAULT_HEALING_TIMEOUT_SEC: float = 90.0
 
 
 class MetaOrchestrator:
@@ -85,6 +92,16 @@ class MetaOrchestrator:
         self._skill_engine: SkillSynthesisEngine = SkillSynthesisEngine(
             sandbox=self._sandbox
         )
+        self._async_bridge: AsyncBridge = AsyncBridge.get_instance()
+        self._healing_enabled: bool = (
+            os.environ.get(HEALING_ENABLED_ENV, "1") != "0"
+        )
+        try:
+            self._healing_timeout_sec: float = float(
+                os.environ.get(HEALING_TIMEOUT_ENV, DEFAULT_HEALING_TIMEOUT_SEC)
+            )
+        except (TypeError, ValueError):
+            self._healing_timeout_sec = DEFAULT_HEALING_TIMEOUT_SEC
 
     # ── public ─────────────────────────────────────────────────────────────
 
@@ -203,13 +220,16 @@ class MetaOrchestrator:
     def _execute_node(
         self, node: dict[str, Any], dag: dict[str, Any]
     ) -> dict[str, Any]:
-        """Execute a single DAG node with firewall, sandbox, and reward-judge gating.
+        """Execute a single DAG node with firewall, sandbox, judge, and healing.
 
-        Re-validates the generated task description through the firewall, runs
-        the sandboxed subprocess with a metadata-derived timeout, then submits
-        stdout to :class:`RewardSwarmJudge` for semantic verification. A
-        failure signal from any gate demotes the node to ``error`` status and
-        emits an OTel failure event plus an immunity lesson to ``LESSON.md``.
+        Pipeline:
+          1. Re-validate the task description through :class:`AgentFirewall`.
+          2. Run the task in :class:`SandboxExecutor` with a bounded timeout.
+          3. On success, submit stdout to :class:`RewardSwarmJudge`; a
+             semantic failure demotes the node to ``error``.
+          4. On failure (syntactic or semantic), enter the HEALING path: ask
+             :class:`SkillSynthesisEngine` to synthesize a fix, retry the
+             sandbox once, and return ``healed`` / ``failed_after_heal``.
 
         Args:
             node: DAG node dict with ``node_id``, ``task_description``, and
@@ -217,8 +237,9 @@ class MetaOrchestrator:
             dag: Full DAG dict, passed through to the sandbox as context.
 
         Returns:
-            A dict with ``status``, ``output``, and ``error`` keys matching the
-            :class:`SandboxExecutor` contract.
+            A dict with ``status``, ``output``, and ``error`` keys. May also
+            carry ``synthesized_skill``, ``heal_attempted``, and
+            ``heal_reason`` when the HEALING path runs.
         """
         node_id: str = node["node_id"]
         task_description: str = node["task_description"]
@@ -236,25 +257,12 @@ class MetaOrchestrator:
             or metadata.get("complexity")
             or DEFAULT_NODE_TIMEOUT_SEC
         )
+        sandbox_context: dict[str, Any] = {"dag_metadata": dag.get("metadata", {})}
 
         try:
-            result: dict[str, Any] = self._sandbox.execute(
-                node_id,
-                task_description,
-                {"dag_metadata": dag.get("metadata", {})},
-                timeout_sec=timeout_sec,
+            result: dict[str, Any] = self._run_sandbox_with_judge(
+                node_id, task_description, sandbox_context, timeout_sec
             )
-            if result.get("status") == "success":
-                passed, critique = self._reward_judge.judge(
-                    stdout=result.get("output", ""),
-                    task_description=task_description,
-                )
-                if not passed:
-                    result["status"] = "error"
-                    existing_error: str = result.get("error") or ""
-                    result["error"] = (
-                        f"[SEMANTIC FAILURE] {critique}\n{existing_error}"
-                    )
         except (OSError, RuntimeError, ValueError) as exc:
             compressed: str = self._compressor.compress_error(exc)
             logger.exception("Unhandled sandbox error on node %s", node_id)
@@ -271,54 +279,220 @@ class MetaOrchestrator:
             )
             return {"status": "error", "error": "drift_loop_anomaly"}
 
-        if result.get("status") != "success":
-            analysis: str = self._compressor.compress_error(
-                RuntimeError(result.get("error", "unknown"))
-            )
-            self._write_immunity_lesson(node_id, task_description, "SYNTACTIC", analysis)
-            self._otel.log_failure(
-                node_id,
-                RuntimeError(result.get("error", "unknown")),
-                {"result": result},
-            )
-
-            # === TEST-TIME TOOL EVOLUTION (HERMES PARADIGM) ===
-            missing_capability: str = node.get("metadata", {}).get(
-                "missing_capability", ""
-            )
-            if missing_capability:
-                logger.info(
-                    "_execute_node: triggering SkillSynthesisEngine for "
-                    "node=%s capability=%r",
-                    node_id,
-                    missing_capability,
-                )
-                synth_success, skill_path, synth_error = asyncio.run(
-                    self._skill_engine.synthesize_on_demand(
-                        task_objective=missing_capability,
-                        node_id=node_id,
-                    )
-                )
-                if synth_success:
-                    logger.info(
-                        "_execute_node: skill synthesized at %s — "
-                        "retrying node %s",
-                        skill_path,
-                        node_id,
-                    )
-                    self._skill_engine.load_skill(skill_path)
-                    result["synthesized_skill"] = skill_path
-                    result["status"] = "retry_with_skill"
-                else:
-                    logger.warning(
-                        "_execute_node: skill synthesis failed for "
-                        "node=%s: %s",
-                        node_id,
-                        synth_error,
-                    )
+        if result.get("status") == "success":
             return result
 
+        # ── HEALING PATH ───────────────────────────────────────────────────
+        analysis: str = self._compressor.compress_error(
+            RuntimeError(result.get("error", "unknown"))
+        )
+        failure_type: str = (
+            "SEMANTIC"
+            if "[SEMANTIC FAILURE]" in str(result.get("error", ""))
+            else "SYNTACTIC"
+        )
+        self._write_immunity_lesson(node_id, task_description, failure_type, analysis)
+        self._otel.log_failure(
+            node_id,
+            RuntimeError(result.get("error", "unknown")),
+            {"result": result},
+        )
+
+        return self._attempt_stateful_healing(
+            node_id=node_id,
+            node=node,
+            task_description=task_description,
+            sandbox_context=sandbox_context,
+            timeout_sec=timeout_sec,
+            primary_result=result,
+        )
+
+    def _run_sandbox_with_judge(
+        self,
+        node_id: str,
+        task_description: str,
+        sandbox_context: dict[str, Any],
+        timeout_sec: int,
+    ) -> dict[str, Any]:
+        """Run sandbox then reward-judge; demote semantic failures to ``error``.
+
+        Args:
+            node_id: Node identifier passed through to the sandbox.
+            task_description: Verbatim task description.
+            sandbox_context: Context dict made available to the sandbox.
+            timeout_sec: Wall-clock subprocess timeout.
+
+        Returns:
+            The canonical sandbox result dict, with ``status == "error"`` if
+            the reward judge rejects the stdout.
+        """
+        result: dict[str, Any] = self._sandbox.execute(
+            node_id,
+            task_description,
+            sandbox_context,
+            timeout_sec=timeout_sec,
+        )
+        if result.get("status") == "success":
+            passed, critique = self._reward_judge.judge(
+                stdout=result.get("output", ""),
+                task_description=task_description,
+            )
+            if not passed:
+                result["status"] = "error"
+                existing_error: str = result.get("error") or ""
+                result["error"] = (
+                    f"[SEMANTIC FAILURE] {critique}\n{existing_error}"
+                ).strip()
         return result
+
+    def _attempt_stateful_healing(
+        self,
+        *,
+        node_id: str,
+        node: dict[str, Any],
+        task_description: str,
+        sandbox_context: dict[str, Any],
+        timeout_sec: int,
+        primary_result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Try to recover a failed node via SkillSynthesisEngine + one retry.
+
+        Uses ``metadata.missing_capability`` as the healing objective when
+        present, otherwise falls back to the task description itself. The
+        synthesis coroutine runs on the shared :class:`AsyncBridge` event loop
+        so we never spawn per-call loops from inside worker threads.
+
+        Args:
+            node_id: Identifier of the failing node.
+            node: Raw node dict (used to pull metadata for routing).
+            task_description: Task text used as fallback healing objective.
+            sandbox_context: Context passed to the retry sandbox call.
+            timeout_sec: Sandbox retry timeout.
+            primary_result: Result dict from the first sandbox invocation.
+
+        Returns:
+            The primary result annotated with healing metadata, or — on
+            successful retry — a fresh success dict carrying
+            ``status == "healed"`` and the synthesized skill path.
+        """
+        if not self._healing_enabled:
+            primary_result["heal_attempted"] = False
+            primary_result["heal_reason"] = "healing_disabled"
+            return primary_result
+
+        missing_capability: str = node.get("metadata", {}).get(
+            "missing_capability", ""
+        ) or task_description
+
+        logger.info(
+            "HEALING: node=%s entering skill-synthesis recovery (objective=%r)",
+            node_id,
+            missing_capability[:80],
+        )
+        self._otel.log_event(
+            "node_healing_started",
+            {"node_id": node_id, "objective": missing_capability[:200]},
+        )
+
+        try:
+            synth_success, skill_path, synth_error = self._async_bridge.run(
+                self._skill_engine.synthesize_on_demand(
+                    task_objective=missing_capability,
+                    node_id=node_id,
+                ),
+                timeout=self._healing_timeout_sec,
+            )
+        except TimeoutError:
+            logger.warning(
+                "HEALING: node=%s skill synthesis exceeded %.1fs — giving up",
+                node_id,
+                self._healing_timeout_sec,
+            )
+            primary_result["heal_status"] = STATUS_FAILED_AFTER_HEAL
+            primary_result["heal_attempted"] = True
+            primary_result["heal_reason"] = "synthesis_timeout"
+            return primary_result
+        except Exception as exc:  # noqa: BLE001 — defensive: bridge is best-effort
+            logger.exception("HEALING: unexpected synthesis error on %s", node_id)
+            primary_result["heal_status"] = STATUS_FAILED_AFTER_HEAL
+            primary_result["heal_attempted"] = True
+            primary_result["heal_reason"] = f"synthesis_error: {exc}"
+            return primary_result
+
+        if not synth_success:
+            logger.warning(
+                "HEALING: node=%s skill synthesis failed: %s",
+                node_id,
+                synth_error,
+            )
+            primary_result["heal_status"] = STATUS_FAILED_AFTER_HEAL
+            primary_result["heal_attempted"] = True
+            primary_result["heal_reason"] = f"synthesis_failed: {synth_error}"
+            return primary_result
+
+        try:
+            self._skill_engine.load_skill(skill_path)
+        except ImportError as exc:
+            logger.warning(
+                "HEALING: node=%s could not load synthesized skill %s: %s",
+                node_id,
+                skill_path,
+                exc,
+            )
+            primary_result["heal_status"] = STATUS_FAILED_AFTER_HEAL
+            primary_result["heal_attempted"] = True
+            primary_result["heal_reason"] = f"skill_load_failed: {exc}"
+            primary_result["synthesized_skill"] = skill_path
+            return primary_result
+
+        logger.info(
+            "HEALING: node=%s retrying sandbox with synthesized skill at %s",
+            node_id,
+            skill_path,
+        )
+        retry_context: dict[str, Any] = {
+            **sandbox_context,
+            "synthesized_skill": skill_path,
+            "heal_retry": True,
+        }
+        try:
+            retry_result: dict[str, Any] = self._run_sandbox_with_judge(
+                node_id, task_description, retry_context, timeout_sec
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            logger.exception("HEALING: retry sandbox raised on %s", node_id)
+            primary_result["heal_status"] = STATUS_FAILED_AFTER_HEAL
+            primary_result["heal_attempted"] = True
+            primary_result["heal_reason"] = f"retry_raised: {exc}"
+            primary_result["synthesized_skill"] = skill_path
+            return primary_result
+
+        retry_result["heal_attempted"] = True
+        retry_result["synthesized_skill"] = skill_path
+        if retry_result.get("status") == "success":
+            # Keep status == "success" so the DAG runner unblocks children,
+            # but surface the recovery signal on a sibling field.
+            retry_result["heal_status"] = STATUS_HEALED
+            retry_result["heal_reason"] = "retry_succeeded"
+            self._otel.log_event(
+                "node_healed", {"node_id": node_id, "skill": skill_path}
+            )
+            logger.info("HEALING: node=%s successfully healed", node_id)
+            return retry_result
+
+        retry_result["heal_status"] = STATUS_FAILED_AFTER_HEAL
+        retry_result["heal_reason"] = (
+            f"retry_failed: {retry_result.get('error', 'unknown')}"
+        )
+        self._otel.log_event(
+            "node_heal_failed", {"node_id": node_id, "skill": skill_path}
+        )
+        logger.warning(
+            "HEALING: node=%s retry did not succeed: %s",
+            node_id,
+            retry_result.get("error", "unknown"),
+        )
+        return retry_result
 
     def _write_immunity_lesson(
         self,

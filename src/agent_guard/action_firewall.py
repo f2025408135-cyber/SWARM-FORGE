@@ -38,6 +38,35 @@ DYNAMIC_EVAL_PRIMITIVES: Final[frozenset[str]] = frozenset({
     "__import__", "eval", "exec", "compile",
 })
 
+# Interactive I/O primitives. An agent that calls input() can stall the
+# sandbox subprocess forever or steal the operator's terminal. breakpoint()
+# drops into pdb. Both are blocked unconditionally.
+INTERACTIVE_IO_PRIMITIVES: Final[frozenset[str]] = frozenset({
+    "input", "builtins.input", "breakpoint", "builtins.breakpoint",
+})
+
+# Dunder attribute chains classically used to escape sandboxes by walking
+# from any object to ``object.__subclasses__()`` and from there to any
+# arbitrary class (file, subprocess, os…). Any attribute access whose name
+# is a member of this set trips the firewall.
+BANNED_DUNDERS: Final[frozenset[str]] = frozenset({
+    "__class__", "__bases__", "__mro__", "__subclasses__",
+    "__globals__", "__builtins__", "__dict__", "__code__",
+    "__func__", "__self__", "__module__", "__getattribute__",
+    "__reduce__", "__reduce_ex__",
+})
+
+# Reflection calls (``getattr(x, "y")``) that resolve to a banned dunder,
+# a subprocess primitive, or an interactive-IO primitive must be blocked
+# regardless of how the agent spells the target object.
+BANNED_GETATTR_TARGETS: Final[frozenset[str]] = frozenset({
+    "system", "Popen", "run", "call", "check_call", "check_output",
+    "input", "breakpoint", "eval", "exec", "compile",
+    "__class__", "__bases__", "__mro__", "__subclasses__",
+    "__globals__", "__builtins__", "__dict__", "__code__",
+    "__import__",
+})
+
 
 class SecurityViolation(Exception):
     """Raised during AST traversal when a capability policy is violated."""
@@ -120,16 +149,20 @@ class ActionFirewallVisitor(ast.NodeVisitor):
                 f"Dynamic execution primitive blocked: {func_name}"
             )
 
+        if func_name in INTERACTIVE_IO_PRIMITIVES:
+            raise SecurityViolation(
+                f"Interactive I/O primitive blocked: {func_name}"
+            )
+
         if func_name == "getattr" and len(node.args) >= 2:
             attr_arg = node.args[1]
             if isinstance(attr_arg, ast.Constant) and isinstance(
                 attr_arg.value, str
             ):
-                if attr_arg.value in {
-                    "system", "Popen", "run", "call", "check_call",
-                }:
+                if attr_arg.value in BANNED_GETATTR_TARGETS:
                     raise SecurityViolation(
-                        "Reflection-based capability hijacking blocked."
+                        f"Reflection-based capability hijacking blocked: "
+                        f"getattr(..., {attr_arg.value!r})"
                     )
 
         for banned in BANNED_FUNCTIONS:
@@ -140,6 +173,29 @@ class ActionFirewallVisitor(ast.NodeVisitor):
                 self._inspect_subprocess_kwargs(node.keywords)
                 raise SecurityViolation(f"Banned function call: {func_name}")
 
+        self.generic_visit(node)
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        """Block dunder attribute chains (``__class__.__bases__`` etc.).
+
+        Catches the classic Python sandbox-escape primitive where an agent
+        walks ``"".__class__.__bases__[0].__subclasses__()`` to reach
+        arbitrary classes (file, subprocess, …). Any access whose attribute
+        name is in :data:`BANNED_DUNDERS` is rejected structurally.
+        """
+        if node.attr in BANNED_DUNDERS:
+            raise SecurityViolation(
+                f"Dunder reflection attribute blocked: .{node.attr}"
+            )
+        self.generic_visit(node)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        """Walk into lambda bodies so banned calls cannot hide inside them.
+
+        Without this, ``(lambda: __import__('os').system('…'))()`` would
+        skip Layer-3 enforcement because the default :class:`ast.NodeVisitor`
+        treats ``ast.Lambda.body`` as an opaque expression.
+        """
         self.generic_visit(node)
 
     def _inspect_subprocess_args(self, args: list[ast.expr]) -> None:

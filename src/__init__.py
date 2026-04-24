@@ -21,6 +21,7 @@ from .agent_guard import (
     GeometricDOMSanitizer,
     verify_agent_action,
 )
+from .async_bridge import AsyncBridge
 from .ast_context_compressor import ASTContextCompressor
 from .dag_execution_engine import (
     BayesianBeliefState,
@@ -43,6 +44,7 @@ __all__: list[str] = [
     "ASTContextCompressor",
     "ActionFirewallVisitor",
     "AgentFirewall",
+    "AsyncBridge",
     "BayesianBeliefState",
     "CognitiveFirewall",
     "DAGManager",
