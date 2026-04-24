@@ -1,0 +1,92 @@
+{
+  "nodes": [
+    {
+      "node_id": "recon_unauthenticated_access",
+      "dependencies": [],
+      "task_description": "Write a Python 3.12 script that sends HTTP GET requests to http://localhost:3000/api/v1/health and http://localhost:3000/api/v1/users using the httpx library. Log the HTTP status code, response time, and whether the endpoint responds without any Authorization header. Output a JSON report: {\"endpoint\": str, \"status_code\": int, \"auth_required\": bool, \"response_ms\": float}. Do not modify any server state.",
+      "metadata": {
+        "layer": 1,
+        "requires_approval": false,
+        "agent_role": "recon_agent",
+        "complexity": 1,
+        "expected_duration": 30,
+        "capability": "http_probe",
+        "model_override": "claude-haiku-4-5"
+      }
+    },
+    {
+      "node_id": "recon_header_analysis",
+      "dependencies": [],
+      "task_description": "Write a Python 3.12 script that sends HTTP requests to http://localhost:3000 and inspects the response headers. Check for the presence and correct configuration of: Strict-Transport-Security, Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and Permissions-Policy. For each header, output a JSON report: {\"header\": str, \"present\": bool, \"value\": str, \"misconfigured\": bool, \"reason\": str}.",
+      "metadata": {
+        "layer": 1,
+        "requires_approval": false,
+        "agent_role": "recon_agent",
+        "complexity": 1,
+        "expected_duration": 30,
+        "capability": "header_audit",
+        "model_override": "claude-haiku-4-5"
+      }
+    },
+    {
+      "node_id": "recon_jwt_audit",
+      "dependencies": [],
+      "task_description": "Write a Python 3.12 script that decodes a sample JWT token from http://localhost:3000/api/v1/auth/token (GET request, no credentials). Inspect the decoded header and payload using the PyJWT library with options={'verify_signature': False}. Check if the algorithm field in the header is 'none', 'HS256', or 'RS256'. Flag any token using the 'none' algorithm as a critical misconfiguration. Output a JSON report: {\"algorithm\": str, \"none_algorithm_detected\": bool, \"payload_keys\": list, \"exp_present\": bool}.",
+      "metadata": {
+        "layer": 1,
+        "requires_approval": false,
+        "agent_role": "recon_agent",
+        "complexity": 2,
+        "expected_duration": 45,
+        "capability": "jwt_audit",
+        "model_override": "claude-haiku-4-5"
+      }
+    },
+    {
+      "node_id": "synthesis_vulnerability_aggregation",
+      "dependencies": [
+        "recon_unauthenticated_access",
+        "recon_header_analysis",
+        "recon_jwt_audit"
+      ],
+      "task_description": "Write a Python 3.12 script that reads the JSON output files from the three recon agents (recon_unauthenticated_access.json, recon_header_analysis.json, recon_jwt_audit.json) in the current directory. Aggregate the findings into a unified risk assessment report. Score each finding by CVSS severity (Critical/High/Medium/Low). Attempt to craft a proof-of-concept request to http://localhost:3000/api/v1/admin using any discovered unauthenticated endpoints and misconfigured JWT tokens as evidence of exploitability. Output a final JSON report: {\"total_findings\": int, \"critical\": list, \"high\": list, \"auth_bypass_feasible\": bool, \"recommended_poc_vector\": str}.",
+      "metadata": {
+        "layer": 2,
+        "requires_approval": false,
+        "agent_role": "synthesis_agent",
+        "complexity": 3,
+        "expected_duration": 90,
+        "capability": "vulnerability_synthesis",
+        "missing_capability": "aggregate multiple JSON security scan outputs into a unified CVSS-scored risk report",
+        "model_override": "claude-sonnet-4-5"
+      }
+    },
+    {
+      "node_id": "boardroom_exfiltration_gate",
+      "dependencies": [
+        "synthesis_vulnerability_aggregation"
+      ],
+      "task_description": "Write a Python 3.12 script that, using the auth_bypass_vector from the synthesis report, attempts to retrieve the full user list from http://localhost:3000/api/v1/admin/users. Log all retrieved dummy records to exfil_report.json. This node simulates the final step of an adversarial audit chain and MUST be gated by human approval before execution.",
+      "metadata": {
+        "layer": 3,
+        "requires_approval": true,
+        "agent_role": "exfil_agent",
+        "complexity": 3,
+        "expected_duration": 60,
+        "capability": "authorized_data_retrieval",
+        "model_override": "claude-opus-4-7",
+        "boardroom_reason": "Data retrieval from admin endpoint requires explicit human authorization. Risk threshold exceeded. This action is irreversible and must be approved by a senior engineer before execution."
+      }
+    }
+  ],
+  "metadata": {
+    "problem": "Autonomous API Logic and Authentication Audit on mock enterprise target http://localhost:3000",
+    "dag_version": "2.0",
+    "timestamp": "2026-04-25T01:29:00Z",
+    "orchestrator": "Swarm-Forge Neo-AGI v2.1",
+    "total_nodes": 5,
+    "parallel_layers": 3,
+    "governance_gates": 1,
+    "estimated_total_duration_sec": 255
+  }
+}
