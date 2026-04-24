@@ -1,10 +1,13 @@
 """
-DAG execution engine: Kahn's-algorithm state manager + sequential runner.
+DAG execution engine: Kahn's-algorithm state manager + parallel runner.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import logging
+import threading
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
 
 logger = logging.getLogger("swarmforge.dag")
@@ -19,6 +22,9 @@ class DAGManager:
         nodes: list[dict[str, Any]] = dag["nodes"]
         self._nodes: dict[str, dict[str, Any]] = {n["node_id"]: n for n in nodes}
         self._status: dict[str, _NodeStatus] = {n: "pending" for n in self._nodes}
+
+        # CHANGE 1: cycle detection runs before in_degree is built
+        self._detect_cycles(nodes)
 
         self._children: dict[str, list[str]] = defaultdict(list)
         self._in_degree: dict[str, int] = {n: 0 for n in self._nodes}
@@ -69,45 +75,98 @@ class DAGManager:
                 self._status[nid] = "skipped"
             queue.extend(self._children[nid])
 
+    def _detect_cycles(self, nodes: list[dict[str, Any]]) -> None:
+        """DFS WHITE/GRAY/BLACK cycle detection over the raw nodes list.
+
+        Runs before self._children is populated, so builds its own adjacency.
+        """
+        WHITE, GRAY, BLACK = 0, 1, 2
+        adj: dict[str, list[str]] = defaultdict(list)
+        all_ids: set[str] = {n["node_id"] for n in nodes}
+        for node in nodes:
+            for dep in node["dependencies"]:
+                adj[dep].append(node["node_id"])
+
+        color: dict[str, int] = {n: WHITE for n in all_ids}
+
+        def dfs(node_id: str) -> None:
+            color[node_id] = GRAY
+            for child in adj[node_id]:
+                if color[child] == GRAY:
+                    raise ValueError(
+                        f"DAG contains circular dependencies: cycle through node {child}"
+                    )
+                if color[child] == WHITE:
+                    dfs(child)
+            color[node_id] = BLACK
+
+        for nid in all_ids:
+            if color[nid] == WHITE:
+                dfs(nid)
+
 
 class ParallelDAGRunner:
-    """Runs DAG nodes sequentially in dependency order (Kahn's algorithm).
-
-    Named 'Parallel' for API compatibility; actual execution is sequential
-    via OS subprocesses in production callers — no threads are used here.
-    """
+    """Runs DAG nodes in parallel using ThreadPoolExecutor."""
 
     def __init__(
         self,
         dag_manager: DAGManager,
         executor_fn: Callable[[dict[str, Any]], dict[str, Any]],
-        max_workers: int = 4,  # kept for API compatibility, unused
+        max_workers: int = 4,
     ) -> None:
         self._manager = dag_manager
         self._executor_fn = executor_fn
+        self.max_workers = max_workers
+        self._governance_lock = threading.Lock()
 
     def run(self) -> dict[str, dict[str, Any]]:
         node_results: dict[str, dict[str, Any]] = {}
         submitted: set[str] = set()
-        queue: list[str] = []
+        futures: dict[concurrent.futures.Future[dict[str, Any]], str] = {}
 
-        def enqueue_ready() -> None:
+        def enqueue_ready(executor: ThreadPoolExecutor) -> None:
             for node_id in self._manager.get_ready_nodes():
-                if node_id not in submitted:
-                    submitted.add(node_id)
-                    queue.append(node_id)
+                if node_id in submitted:
+                    continue
+                node = self._manager.get_node(node_id)
 
-        enqueue_ready()
+                # CHANGE 3: boardroom governance gate
+                if node.get("metadata", {}).get("requires_approval"):
+                    with self._governance_lock:
+                        print(
+                            f"[BOARDROOM GOVERNANCE: Node {node_id} requires human "
+                            "authorization. Cost/Risk threshold exceeded.]"
+                        )
+                        answer = input("Authorize? [y/n]: ").strip().lower()
+                    if answer != "y":
+                        submitted.add(node_id)
+                        self._manager.mark_complete(node_id, success=False)
+                        node_results[node_id] = {
+                            "status": "rejected",
+                            "error": "boardroom_governance_rejected",
+                        }
+                        continue
 
-        while queue:
-            node_id = queue.pop(0)
-            self._manager.mark_running(node_id)
-            node = self._manager.get_node(node_id)
-            result = self._run_node(node)
-            success = result.get("status") == "success"
-            self._manager.mark_complete(node_id, success)
-            node_results[node_id] = result
-            enqueue_ready()
+                # CHANGE 2: submit to thread pool (truly parallel)
+                submitted.add(node_id)
+                self._manager.mark_running(node_id)
+                future = executor.submit(self._run_node, node)
+                futures[future] = node_id
+
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            enqueue_ready(executor)
+            while futures:
+                done, _ = concurrent.futures.wait(
+                    list(futures.keys()),
+                    return_when=concurrent.futures.FIRST_COMPLETED,
+                )
+                for future in done:
+                    node_id = futures.pop(future)
+                    result = future.result()
+                    success = result.get("status") == "success"
+                    self._manager.mark_complete(node_id, success)
+                    node_results[node_id] = result
+                enqueue_ready(executor)
 
         return node_results
 

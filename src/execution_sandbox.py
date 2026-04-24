@@ -14,8 +14,6 @@ from typing import Any
 
 logger = logging.getLogger("swarmforge.sandbox")
 
-_TIMEOUT_SEC = 30
-
 
 class SandboxExecutor:
     def execute(
@@ -23,13 +21,25 @@ class SandboxExecutor:
         node_id: str,
         task_description: str,
         context: dict[str, Any],
+        timeout_sec: int = 120,
     ) -> dict[str, Any]:
+        """Run *task_description* for *node_id* in an isolated subprocess.
+
+        Args:
+            node_id: Unique identifier of the DAG node being executed.
+            task_description: Human-readable task passed into the generated script.
+            context: Arbitrary key/value pairs made available to the script.
+            timeout_sec: Seconds to wait before killing the subprocess (default 120).
+
+        Returns:
+            A dict with keys ``status``, ``output``, and ``error``.
+        """
         script = self._build_script(node_id, task_description, context)
         try:
-            stdout = self._run_subprocess(script)
+            stdout = self._run_subprocess(script, timeout_sec)
             return {"status": "success", "output": stdout, "error": None}
         except subprocess.TimeoutExpired:
-            logger.warning("Node %s timed out after %ds", node_id, _TIMEOUT_SEC)
+            logger.warning("Node %s timed out after %ds", node_id, timeout_sec)
             return {"status": "error", "output": "", "error": "execution_timeout"}
         except subprocess.CalledProcessError as exc:
             logger.warning("Node %s exited non-zero: %s", node_id, exc.stderr)
@@ -63,7 +73,7 @@ class SandboxExecutor:
             print(json.dumps(result))
         """)
 
-    def _run_subprocess(self, script: str) -> str:
+    def _run_subprocess(self, script: str, timeout_sec: int) -> str:
         fd, tmp_path = tempfile.mkstemp(suffix=".py")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
@@ -72,7 +82,7 @@ class SandboxExecutor:
                 [sys.executable, tmp_path],
                 capture_output=True,
                 text=True,
-                timeout=_TIMEOUT_SEC,
+                timeout=timeout_sec,
             )
             if proc.returncode != 0:
                 raise subprocess.CalledProcessError(
