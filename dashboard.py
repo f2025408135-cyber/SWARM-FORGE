@@ -16,14 +16,19 @@ Author: Swarm-Forge Engineering
 from __future__ import annotations
 
 import json
+import logging
 import time
+import traceback
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import streamlit as st
 
+logger = logging.getLogger(__name__)
+
 ROOT: Path = Path(__file__).resolve().parent
+MAX_JSON_BYTES: int = 8 * 1024 * 1024  # 8 MB hard cap — prevents runaway log files crushing the UI
 
 PALETTE: dict[str, str] = {
     "bg":        "#05070d",
@@ -40,16 +45,43 @@ PALETTE: dict[str, str] = {
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Data loading
+# Data loading — fail-soft, never raise to top-level Streamlit script
 # ──────────────────────────────────────────────────────────────────────────────
 def load_json(filename: str) -> Any | None:
-    """Read a JSON artefact from the repo root, returning ``None`` on failure."""
-    path = ROOT / filename
+    """Read a JSON artefact from the repo root, returning ``None`` on failure.
+
+    Hardened against:
+        * FileNotFoundError, PermissionError, OSError (locked / missing)
+        * json.JSONDecodeError (malformed content)
+        * UnicodeDecodeError (binary or non-UTF-8 content)
+        * Path traversal (filename is reduced to its basename)
+        * Oversized payloads (>MAX_JSON_BYTES → refuses to load)
+    """
+    safe_name = Path(filename).name  # strip any traversal
+    if not safe_name or safe_name in {".", ".."}:
+        return None
+    path = ROOT / safe_name
     try:
+        if path.is_file() and path.stat().st_size > MAX_JSON_BYTES:
+            logger.warning("load_json: %s exceeds %d bytes — refusing to load",
+                           safe_name, MAX_JSON_BYTES)
+            return None
         with path.open("r", encoding="utf-8") as fh:
             return json.load(fh)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    except (FileNotFoundError, PermissionError, json.JSONDecodeError,
+            UnicodeDecodeError, OSError) as exc:
+        logger.info("load_json: %s unreadable (%s)", safe_name, type(exc).__name__)
         return None
+
+
+def safe_dict(value: Any) -> dict[str, Any]:
+    """Coerce arbitrary input to a dict — defangs poisoned JSON with non-dict roots."""
+    return value if isinstance(value, dict) else {}
+
+
+def safe_list(value: Any) -> list[Any]:
+    """Coerce arbitrary input to a list — defangs poisoned JSON with non-list arrays."""
+    return value if isinstance(value, list) else []
 
 
 def offline_banner(label: str) -> None:
@@ -59,6 +91,18 @@ def offline_banner(label: str) -> None:
         f"(artefact not found on disk)</div>",
         unsafe_allow_html=True,
     )
+
+
+def render_panic(section: str, exc: BaseException) -> None:
+    """Top-level catch-all renderer — keeps the rest of the UI alive on tab crash."""
+    logger.exception("dashboard panel '%s' crashed", section)
+    st.error(
+        f"⚠ **{section}** — render aborted to keep the dashboard alive.\n\n"
+        f"`{type(exc).__name__}: {exc}`"
+    )
+    with st.expander("🔍 Stack trace (defensive disclosure)"):
+        st.code("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+                language="text")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -290,19 +334,20 @@ st.markdown(
 # ──────────────────────────────────────────────────────────────────────────────
 # Eager loads (used across tabs and the top KPI strip)
 # ──────────────────────────────────────────────────────────────────────────────
-dag_data:        dict[str, Any] | None = load_json("demo_dag.json")
-unified_risk:    dict[str, Any] | None = load_json("unified_risk_assessment.json")
-synthesis:       dict[str, Any] | None = load_json("synthesis_vulnerability_aggregation.json")
-jwt_report:      dict[str, Any] | None = load_json("jwt_report.json")
-jwt_audit:       dict[str, Any] | None = load_json("recon_jwt_audit.json")
-endpoint_report: list[dict[str, Any]] | None = load_json("endpoint_report.json")
-health_report:   list[dict[str, Any]] | None = load_json("health_report.json")
-recon_unauth:    dict[str, Any] | None = load_json("recon_unauthenticated_access.json")
-recon_headers:   list[dict[str, Any]] | None = load_json("recon_header_analysis.json")
-sec_headers:     dict[str, Any] | None = load_json("security_headers_report.json")
-risk_assessment: dict[str, Any] | None = load_json("risk_assessment_report.json")
-exfil:           dict[str, Any] | None = load_json("exfil_report.json")
-boardroom:       dict[str, Any] | None = load_json("boardroom_exfiltration_gate.json")
+with st.spinner("🛰  Hydrating artefact cache from disk…"):
+    dag_data:        dict[str, Any] | None = load_json("demo_dag.json")
+    unified_risk:    dict[str, Any] | None = load_json("unified_risk_assessment.json")
+    synthesis:       dict[str, Any] | None = load_json("synthesis_vulnerability_aggregation.json")
+    jwt_report:      dict[str, Any] | None = load_json("jwt_report.json")
+    jwt_audit:       dict[str, Any] | None = load_json("recon_jwt_audit.json")
+    endpoint_report: list[dict[str, Any]] | None = load_json("endpoint_report.json")
+    health_report:   list[dict[str, Any]] | None = load_json("health_report.json")
+    recon_unauth:    dict[str, Any] | None = load_json("recon_unauthenticated_access.json")
+    recon_headers:   list[dict[str, Any]] | None = load_json("recon_header_analysis.json")
+    sec_headers:     dict[str, Any] | None = load_json("security_headers_report.json")
+    risk_assessment: dict[str, Any] | None = load_json("risk_assessment_report.json")
+    exfil:           dict[str, Any] | None = load_json("exfil_report.json")
+    boardroom:       dict[str, Any] | None = load_json("boardroom_exfiltration_gate.json")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -336,17 +381,21 @@ def kpi_count(level: str) -> int:
     """Sum critical/high/medium/low findings across both synthesis artefacts."""
     total = 0
     for src in (unified_risk, synthesis):
-        if isinstance(src, dict) and isinstance(src.get(level), list):
-            total = max(total, len(src[level]))
+        bucket = safe_dict(src).get(level)
+        if isinstance(bucket, list):
+            total = max(total, len(bucket))
     return total
 
 
-total_findings = (unified_risk or {}).get("total_findings") \
-    or (synthesis or {}).get("total_findings") or 0
+total_findings = (
+    safe_dict(unified_risk).get("total_findings")
+    or safe_dict(synthesis).get("total_findings")
+    or 0
+)
 crit_count   = kpi_count("critical")
 high_count   = kpi_count("high")
 medium_count = kpi_count("medium")
-node_count   = len((dag_data or {}).get("nodes", []))
+node_count   = len(safe_list(safe_dict(dag_data).get("nodes")))
 
 k1, k2, k3, k4, k5 = st.columns(5)
 with k1:
@@ -374,7 +423,8 @@ with k4:
         unsafe_allow_html=True,
     )
 with k5:
-    bypass = (unified_risk or synthesis or {}).get("auth_bypass_feasible", False)
+    bypass_src = unified_risk if isinstance(unified_risk, dict) else synthesis
+    bypass = bool(safe_dict(bypass_src).get("auth_bypass_feasible", False))
     label, cls = ("FEASIBLE", "pill-crit") if bypass else ("BLOCKED", "pill-ok")
     st.markdown(
         f"<div class='metric-card'><div class='metric-label'>Auth Bypass</div>"
@@ -399,6 +449,7 @@ tab_dag, tab_guard, tab_intel = st.tabs([
 # TAB 1 — DAG Orchestration
 # ════════════════════════════════════════════════════════════════════════════
 with tab_dag:
+  try:
     st.markdown("### Sovereign Architect — Deterministic DAG Compilation")
     st.markdown(
         f"<div class='subtle'>The Meta-Orchestrator translates a natural-language "
@@ -416,10 +467,10 @@ with tab_dag:
         status.update(label="✅ Planner finished — deterministic DAG ready.",
                       state="complete", expanded=False)
 
-    if dag_data is None or not isinstance(dag_data, dict):
+    if not isinstance(dag_data, dict):
         offline_banner("demo_dag.json")
     else:
-        meta = dag_data.get("metadata", {}) or {}
+        meta = safe_dict(dag_data.get("metadata"))
         m1, m2, m3, m4 = st.columns(4)
         with m1:
             st.markdown(
@@ -447,8 +498,10 @@ with tab_dag:
             )
 
         st.markdown("#### Compiled Node Plan")
-        for node in dag_data.get("nodes", []):
-            md = node.get("metadata", {}) or {}
+        for node in safe_list(dag_data.get("nodes")):
+            if not isinstance(node, dict):
+                continue
+            md = safe_dict(node.get("metadata"))
             requires_approval = bool(md.get("requires_approval"))
             badge_html = (
                 "<span class='pill pill-crit'>HUMAN GATE</span>"
@@ -476,12 +529,15 @@ with tab_dag:
 
         with st.expander("📜 Show Deterministic DAG JSON"):
             st.code(json.dumps(dag_data, indent=2), language="json")
+  except Exception as exc:  # noqa: BLE001 — top-level UI catch-all (Defensive UI policy)
+    render_panic("DAG Orchestration tab", exc)
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 2 — Agent Guard (DeepMind Layer)
 # ════════════════════════════════════════════════════════════════════════════
 with tab_guard:
+  try:
     st.markdown("### Agent Guard — Three-Layer Cognitive Immune System")
     st.markdown(
         "<div class='subtle'>"
@@ -534,14 +590,16 @@ with tab_guard:
     st.success("CAPABILITY ALLOWLIST: `httpx.get` permitted for node `recon_unauthenticated_access`.")
 
     st.markdown("#### 🧪 Reward Swarm Judge — Semantic Verdicts")
-    if dag_data is None or not isinstance(dag_data, dict):
+    if not isinstance(dag_data, dict):
         offline_banner("demo_dag.json")
     else:
         verdict_rows: list[dict[str, Any]] = []
-        for node in dag_data.get("nodes", []):
-            node_id = node.get("node_id", "unknown")
-            artefact = load_json(f"{node_id}.json")
-            md = node.get("metadata", {}) or {}
+        for node in safe_list(dag_data.get("nodes")):
+            if not isinstance(node, dict):
+                continue
+            node_id = str(node.get("node_id", "unknown"))
+            artefact = load_json(f"{node_id}.json")  # load_json sanitises basename
+            md = safe_dict(node.get("metadata"))
 
             if md.get("requires_approval"):
                 verdict, score, status_label = "GATED", 0.0, "Human-Authorization Required"
@@ -571,19 +629,31 @@ with tab_guard:
             }.get(val, PALETTE["muted"])
             return f"color: {colour}; font-weight: 700;"
 
+        def _style_score(val: float) -> str:
+            # Pure-CSS heatmap — avoids matplotlib hard dependency that was crashing the tab.
+            try:
+                v = max(0.0, min(1.0, float(val)))
+            except (TypeError, ValueError):
+                v = 0.0
+            alpha = 0.10 + 0.45 * v
+            return f"background-color: rgba(0,229,255,{alpha:.2f}); color: {PALETTE['text']};"
+
         styled = (
             df.style
               .format({"Score": "{:.2f}"})
               .map(_style_verdict, subset=["Verdict"])
-              .background_gradient(subset=["Score"], cmap="cool")
+              .map(_style_score,   subset=["Score"])
         )
         st.dataframe(styled, use_container_width=True, hide_index=True)
+  except Exception as exc:  # noqa: BLE001 — top-level UI catch-all (Defensive UI policy)
+    render_panic("Agent Guard tab", exc)
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 3 — Threat Intel Synthesis
 # ════════════════════════════════════════════════════════════════════════════
 with tab_intel:
+  try:
     st.markdown("### Threat Intel Synthesis — The Aggregate Truth of the Swarm")
     st.markdown(
         f"<div class='subtle'>Findings from every recon agent are fused, "
@@ -597,10 +667,12 @@ with tab_intel:
     with col_vuln:
         st.markdown("#### 🔥 Critical Vulnerabilities")
         rendered_any = False
-        risk_src = unified_risk or synthesis
+        risk_src = unified_risk if isinstance(unified_risk, dict) else synthesis
 
         if isinstance(risk_src, dict):
-            for finding in risk_src.get("critical", []) or []:
+            for finding in safe_list(risk_src.get("critical")):
+                if not isinstance(finding, dict):
+                    continue
                 rendered_any = True
                 cvss = finding.get("cvss_score", "—")
                 st.markdown(
@@ -617,7 +689,9 @@ with tab_intel:
                     """,
                     unsafe_allow_html=True,
                 )
-            for finding in risk_src.get("high", []) or []:
+            for finding in safe_list(risk_src.get("high")):
+                if not isinstance(finding, dict):
+                    continue
                 rendered_any = True
                 cvss = finding.get("cvss_score", "—")
                 st.markdown(
@@ -665,9 +739,9 @@ with tab_intel:
     # ── Recon Data ────────────────────────────────────────────────────────
     with col_recon:
         st.markdown("#### 🛰 Recon Data — Endpoint Map")
-        endpoints_src = recon_unauth or {}
+        endpoints_src = safe_dict(recon_unauth)
         endpoints: list[dict[str, Any]] = []
-        if isinstance(endpoints_src, dict) and isinstance(endpoints_src.get("endpoints"), list):
+        if isinstance(endpoints_src.get("endpoints"), list):
             endpoints = endpoints_src["endpoints"]
         elif isinstance(health_report, list):
             endpoints = health_report
@@ -706,7 +780,7 @@ with tab_intel:
     )
 
     if isinstance(boardroom, dict) or isinstance(exfil, dict):
-        evidence = boardroom or exfil or {}
+        evidence = boardroom if isinstance(boardroom, dict) else safe_dict(exfil)
         c1, c2, c3 = st.columns(3)
         with c1:
             st.markdown(
@@ -736,7 +810,7 @@ with tab_intel:
             with st.expander("🔓 Forged JWT (alg=none) — evidence"):
                 st.code(token, language="text")
 
-        records = evidence.get("records") or []
+        records = safe_list(evidence.get("records"))
         if records:
             with st.expander(f"📂 {len(records)} record(s) retrieved (simulated)"):
                 st.dataframe(pd.DataFrame(records), use_container_width=True, hide_index=True)
@@ -749,6 +823,8 @@ with tab_intel:
         st.caption("Buttons disabled in this read-only CISO view — gate must be approved at orchestrator level.")
     else:
         offline_banner("boardroom_exfiltration_gate.json / exfil_report.json")
+  except Exception as exc:  # noqa: BLE001 — top-level UI catch-all (Defensive UI policy)
+    render_panic("Threat Intel Synthesis tab", exc)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
