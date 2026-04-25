@@ -59,7 +59,12 @@ INTERACTIVE_IO_PRIMITIVES: Final[frozenset[str]] = frozenset({
 BANNED_DUNDERS: Final[frozenset[str]] = frozenset({
     "__class__", "__bases__", "__mro__", "__subclasses__",
     "__globals__", "__builtins__", "__dict__", "__code__",
-    "__func__", "__self__", "__module__", "__getattribute__",
+    "__func__", "__self__", "__module__",
+    # Reflection hooks — both forms must be blocked. __getattr__ is the
+    # fallback hook (called on missing attributes) and __getattribute__
+    # is the unconditional hook. Either one can be installed or invoked
+    # to bypass static dotted-attribute analysis.
+    "__getattr__", "__getattribute__",
     "__reduce__", "__reduce_ex__",
 })
 
@@ -72,6 +77,9 @@ BANNED_GETATTR_TARGETS: Final[frozenset[str]] = frozenset({
     "__class__", "__bases__", "__mro__", "__subclasses__",
     "__globals__", "__builtins__", "__dict__", "__code__",
     "__import__",
+    # getattr(obj, "__getattr__")() / getattr(obj, "__getattribute__")()
+    # are the reflective spellings of the dunder reflection hooks.
+    "__getattr__", "__getattribute__",
 })
 
 
@@ -249,6 +257,10 @@ class ActionFirewallVisitor(ast.NodeVisitor):
         skip Layer-3 enforcement because the default :class:`ast.NodeVisitor`
         treats ``ast.Lambda.body`` as an opaque expression.
         """
+        # Verified: generic_visit recurses into ``node.args`` (defaults) and
+        # ``node.body``, so a Call/Attribute/Name buried in the lambda
+        # expression is dispatched to visit_Call / visit_Attribute and the
+        # ``(lambda: __import__('os').system('…'))()`` payload is rejected.
         self.generic_visit(node)
 
     def _inspect_subprocess_args(self, args: list[ast.expr]) -> None:
