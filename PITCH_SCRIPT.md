@@ -1,22 +1,21 @@
 # Swarm-Forge — 3-Minute Hackathon Pitch Script
 
-**Event:** Anthropic Hackathon
-**Speaker:** Lead Developer
+**Event:** Anthropic "Built with Opus 4.7" Hackathon
+**Speaker:** Founding Engineer
 **Duration:** 3 minutes (180 seconds)
-**Theme:** The Opus 4.7 Mandate — Topological Determinism for the AEV Market
+**Theme:** *Topological Determinism for the AEV Market — the death of Probability Hell*
 
 ---
 
 ## BEAT SHEET
 
-| Time | Beat | Action |
+| Time | Beat | Visual / Action |
 |---|---|---|
-| 0:00–0:20 | The Hook — Problem Statement | Slide: Probability Hell diagram |
-| 0:20–0:55 | The Architecture — What We Built | Slide: DAG orchestration flow |
-| 0:55–1:30 | The Opus 4.7 Mandate | Slide: Model routing table |
-| 1:30–2:00 | The Immune System — AgentGuard | [Action: Show raw AST dropping log] |
-| 2:00–2:30 | Proof — Live Metrics | [Action: Pan over Streamlit Dashboard metrics] |
-| 2:30–3:00 | Economics + Close | Slide: $40 vs $30,000 comparison |
+| 0:00 – 0:30 | **The Hook** — 49% of AI harm is software-driven | Slide: "Probabilistic ReAct = Prayer" diagram |
+| 0:30 – 1:15 | **The Tech** — Kahn's Algorithm · Parallel DAGs · Byzantine RO-Locks | Slide: DAG compilation flow + topological sort animation |
+| 1:15 – 2:00 | **AgentGuard** — Physical severance of capabilities | Live terminal: AST drop of `import requests` |
+| 2:00 – 2:45 | **The Value Prop** — $30,000 audit vs. $40 scan | Slide: 750× cost reduction · Opus 4.7 mandate |
+| 2:45 – 3:00 | **The Close** — Agentic Operating System | Slide: Swarm-Forge logo · "Period." |
 
 ---
 
@@ -24,129 +23,119 @@
 
 ---
 
-**[0:00]**
+### [0:00 — THE HOOK]
 
-Every agent framework in this room is built on the same broken foundation. A probabilistic loop. Ask the LLM what to do. Do it. Ask again. Hope it converges.
+A recent study found that **49% of all AI-attributable harm is software-driven** — autonomous agents executing destructive actions because nobody could prove what they would do next.
 
-That is not an architecture. That is a prayer.
+That is not a model problem. That is an **architecture** problem.
 
-In adversarial security contexts — Adversarial Exposure Validation, red-team automation, AEV — probabilistic loops kill you. The model hallucinates a tool chain. It approves its own failed exploit. It burns $3,000 in tokens and tells you it succeeded.
+Every framework in this room — AutoGen, LangChain, CrewAI — is built on the same broken foundation: a probabilistic ReAct loop. Ask the LLM what to do. Do it. Ask again. Hope it converges.
 
-We call this **Probability Hell**. And we built Swarm-Forge to end it.
+In institutional finance, in adversarial security, in regulated infrastructure — **"probabilistic" is a slur**. A hedge fund cannot deploy a $50M execution agent that "usually" honors its risk envelope. A SOC cannot run a red-team that "probably" won't pivot to production.
 
----
+**Probabilistic ReAct loops are the death of enterprise trust.**
 
-**[0:20]**
-
-Swarm-Forge is not a framework. It is an **operating system for agents**.
-
-The architecture is three words: **Topological Determinism**.
-
-Before a single subprocess runs, Opus 4.7 compiles your natural-language problem into an immutable Directed Acyclic Graph. We validate it with Kahn's Algorithm at plan time. We run a three-color DFS cycle check at execution time. The graph is proven correct before any agent touches a keyboard. It cannot mutate. It cannot loop. It cannot hallucinate its own next step.
-
-**[0:35]**
-
-Then we execute. `ParallelDAGRunner` drives a `ThreadPoolExecutor` with live Kahn in-degree bookkeeping. Nodes fire the moment their dependencies complete — not a second earlier, not in the wrong order. We have a Byzantine consensus lock, `ROLocker`, that halts execution on any node whose epistemic confidence drops below 0.95. The system cannot proceed on uncertain state.
-
-*[Action: Gesture to DAG orchestration slide — show the execution flow]*
-
-This is not AutoGen. This is not LangChain. This is a physics-constrained execution contract.
+We built Swarm-Forge to end them.
 
 ---
 
-**[0:55]**
+### [0:30 — THE TECH]
 
-Now the differentiator: **the Opus 4.7 Mandate**.
+Swarm-Forge is not a framework. It is a **deterministic Neo-AGI orchestrator** — an operating system for agents.
 
-Swarm-Forge is the first framework architecturally co-evolved with Claude 4.7. This is not a marketing line — it is a structural dependency.
+The architecture compiles to three words: **Topological Determinism**.
 
-Here is why: our DAG compiler emits a complex, nested, typed JSON schema in a single shot. Node IDs constrained to `snake_case`. Dependency arrays validated against Pydantic v2 models. We tested this against every model in the Claude family. Haiku falls back on complex enterprise topologies. Sonnet needs multi-shot scaffolding. **Opus 4.7 compiles zero-shot, with zero syntax drift, every time.**
+Before a single subprocess runs, **Opus 4.7** ingests the natural-language problem and emits a fully-typed, Pydantic-v2-validated Directed Acyclic Graph in a single shot. We then prove correctness twice, before any agent touches a keyboard:
 
-**[1:15]**
+- **Kahn's Algorithm** at plan time — in-degree topological sort. If the visited count ≠ total nodes, the plan is rejected. No execution. Period.
+- **Three-color DFS cycle check** at construction time — WHITE, GRAY, BLACK. A back-edge to a GRAY node aborts construction.
 
-The second dependency is semantic. Our `RewardSwarmJudge` runs adversarial verification on every node output. It is looking for one specific failure mode: **Model Sycophancy**. Weaker models, when asked to judge their own outputs, approve failures because the result *looks* syntactically correct. Opus 4.7's epistemic depth catches this. Our judge is fail-closed: any exception, any ambiguity, any parse error returns `False`. We never promote an unverified result.
+*[Visual cue: animated DAG compilation — nodes resolving in topological order]*
 
-*[Action: Flick to model routing table slide — point to the Opus row]*
+**[0:50]** Then we execute in parallel. `ParallelDAGRunner` drives a `ThreadPoolExecutor` with live Kahn in-degree bookkeeping — nodes fire the moment their dependencies clear, not a millisecond earlier.
 
----
+Above that, a **Byzantine Read-Only Lock** — `ROLocker` — gates every state transition. If any node's epistemic confidence drops below 0.95, the transition is **suspended**, not committed. The system enforces a frozen `_ALLOWED_TRANSITIONS` finite-state machine: `pending → running → {success, failed, suspended}`. State cannot mutate sideways. The graph cannot rewrite itself. **The agent does not decide what to run — it executes what the topology mandates.**
 
-**[1:30]**
-
-Now the immune system.
-
-Every input, every tool call, every byte of output passes through **AgentGuard** — a four-stage zero-trust middleware. We built it on the DeepMind AI Agent Trap taxonomy.
-
-*[Action: Show raw AST capability-dropping log in terminal — live or screenshot]*
-
-Stage 0: length guard. Stage 1: compiled regex blocklist — `rm -rf`, `DROP TABLE`, `curl | bash`. Stage 2: `CognitiveFirewall` — six-stage linear scan for Unicode tag block smuggling, base64 payload delivery, jailbreak pattern injection. We block 16 imperative override patterns at NFKC-normalized level, so homoglyph substitution cannot bypass us.
-
-**[1:50]**
-
-Stage 3 is where it gets surgical. `ActionFirewallVisitor` parses every agent-generated Python script into an AST and drops capabilities before the interpreter sees a single opcode.
-
-What do we drop? `import requests`. `subprocess.Popen`. `os.execvp`. `eval`. `exec`. `__import__`. `getattr` reflection targeting `__subclasses__`. Dunder chains — `__class__.__bases__.__mro__`. Lambda bodies — because malicious calls hide in lambdas. `shell=True` subprocess flags. Twelve banned executables including `curl`, `nc`, `bash`, and `python` itself.
-
-This is not a blocklist. This is an **AST immune system**.
+This is not orchestration. This is a **physics-constrained execution contract**.
 
 ---
 
-**[2:00]**
+### [1:15 — AGENTGUARD]
 
-Let me show you what this looks like in production.
+Now the immune system. Because deterministic execution is worthless if the agent can synthesize a malicious payload inside the sandbox.
 
-*[Action: Pan over Streamlit CISO Dashboard — show AEV metrics: node success rates, reward judge pass rate, confidence distribution, healing events, token spend]*
+**AgentGuard** is a four-stage zero-trust middleware. Built on the DeepMind AI Agent Trap taxonomy. And the differentiator is this — we don't *filter* capabilities. We **physically sever** them.
 
-We have a Platinum-grade CISO dashboard. Every metric from the OTel telemetry pipeline, live. Bayesian confidence per node. Healing events — when the swarm failed a node, synthesized a new skill via our HERMES engine, and retried. Drift detection — catching hallucination loops before they burn your budget.
+*[Action: Cut to live terminal — show AST capability dropping log]*
 
-**[2:20]**
+**Stage 0** — length guard.
+**Stage 1** — compiled regex blocklist: `rm -rf`, `DROP TABLE`, `curl | bash`.
+**Stage 2** — `CognitiveFirewall`: NFKC-normalized scan for Unicode tag-block smuggling, base64 payload delivery, jailbreak injection. Sixteen imperative override patterns. Homoglyph substitution cannot bypass.
+**Stage 3** — and this is where it gets surgical — **`ActionFirewallVisitor` parses every agent-generated Python script into an Abstract Syntax Tree and drops capabilities before the interpreter sees a single opcode.**
 
-When a node fails, we do not mark it red and stop. We enter a **HEALING** state. `SkillSynthesisEngine` generates a new Python skill on-demand, validates it against AgentGuard, sandboxes it, and retries — within a 90-second budget. The failure is written to `LESSON.md` via our `SynapticGarbageCollector`. Every future swarm execution inherits the immunity.
+What do we drop? `import requests`. `import urllib`. `subprocess.Popen`. `os.execvp`. `eval`. `exec`. `__import__`. Dunder reflection chains — `__class__.__bases__.__mro__`. Lambda bodies. `shell=True` flags. Twelve banned executables including `curl`, `nc`, `bash`, and `python` itself.
 
-This is synaptic memory. The swarm learns.
+**This is Zero-Trust AST Dropping.** We are not asking the model to behave. We are removing the network stack from its grammar.
+
+> *Even if the model hallucinates an escape — the sandbox has no mouth.*
+
+That is **Epistemic Boundary** enforcement. Not a guardrail. A **severance**.
 
 ---
 
-**[2:30]**
+### [2:00 — THE VALUE PROP]
 
-Now the number that matters.
+Now the number that wins this hackathon.
 
-A manual human red-team AEV audit costs **$30,000** and takes two to four weeks. A single Swarm-Forge autonomous swarm run costs approximately **$40** and completes in minutes.
+A manual human red-team **Adversarial Exposure Validation** audit — the institutional standard for API and business-logic security — costs **$30,000** and takes two to four weeks of senior consultant time.
 
-That is a 750× cost reduction. But more importantly, it is a category change: from bespoke consulting that scales linearly with headcount, to infrastructure that scales horizontally across unlimited parallel nodes.
+A single Swarm-Forge autonomous swarm run costs approximately **$40** and completes in minutes.
 
-**[2:50]**
+That is a **750× cost reduction**. But more importantly, it is a **category change**: from bespoke human consulting that scales linearly with headcount, to deterministic infrastructure that scales horizontally across unlimited parallel DAG nodes.
 
-The $2.5 billion AEV market is not waiting for a better chatbot. It is waiting for deterministic, auditable, self-healing infrastructure.
+**[2:20] — Why Opus 4.7. Specifically.**
+
+We tested every model in the Claude family against our DAG compilation contract. Haiku 4.5 collapses on complex enterprise topologies — the schema isn't there. Sonnet 4.5 needs multi-shot scaffolding and retry pumping. **Only Opus 4.7 has the structural fidelity for Agentic Compilation** — zero-shot, zero syntax drift, complex nested typed JSON, every time.
+
+Our `RewardSwarmJudge` runs on Sonnet 4.5 with fail-closed adversarial verification — but the *compiler*, the artifact that turns natural language into provably-executable topology, **must be Opus 4.7**. This is a structural dependency, not a sponsorship slide.
+
+**[2:35] — The Market.**
+
+The Adversarial Exposure Validation TAM is **$2.5 billion** and growing. Hedge funds, institutional infrastructure, sovereign air-gapped environments — they cannot deploy probabilistic agents. They are waiting for **deterministic, auditable, self-healing** infrastructure with provable Byzantine Fault Tolerance.
 
 Swarm-Forge is that infrastructure.
 
-We didn't build another LLM wrapper.
-
-**We built a physics-constrained AGI immune system.**
-
 ---
 
-*[Applause / Q&A]*
+### [2:45 — THE CLOSE]
+
+We didn't build another LLM wrapper.
+
+We built a deterministic execution engine with topological proofs, AST-level capability severance, fail-closed semantic adjudication, OOM-RL-aware reward telemetry, and Byzantine state-machine governance.
+
+**It's an Agentic Operating System. Period.**
+
+*[Hold beat. Logo. Fade.]*
 
 ---
 
 ## BACKUP Q&A BULLETS
 
 **"Why not AutoGen / LangChain / CrewAI?"**
-They are ReAct-loop frameworks — they solve task routing, not execution correctness. None of them have Kahn's Algorithm, AST capability dropping, or fail-closed semantic reward judging. They are chatty wrappers. We are an execution engine.
+They are ReAct-loop frameworks — they solve task *routing*, not execution *correctness*. None have Kahn's Algorithm, AST capability dropping, fail-closed semantic reward, or Byzantine RO-Locks. They are chatty wrappers. We are an execution engine.
 
 **"What does Opus 4.7 give you that Sonnet doesn't?"**
-Zero-shot JSON schema adherence on complex nested DAGs, and epistemic depth sufficient to detect model sycophancy in reward judging. We tested every model in the family. Opus is the only one with the structural fidelity we need.
+Agentic Compilation: zero-shot adherence on complex nested typed DAG schemas, plus epistemic depth deep enough to detect Model Sycophancy in reward judging. Sonnet drifts. Haiku collapses. Opus is the only model with the structural fidelity our compiler contract demands.
 
 **"How do you handle a node that never converges?"**
-`DriftDetector` tracks identical non-success outcomes across N executions. After the threshold, it marks the node `suspicious` and surfaces it for Boardroom HITL governance — a human approval gate embedded in the runner.
+`DriftDetector` tracks identical non-success outcomes. After N=3, the node is short-circuited and surfaced to **Boardroom HITL Governance** — a synchronous human approval gate inside the runner. Cost-and-risk-gated by design.
 
 **"Is this production-ready?"**
-213 tests passing, zero skips. Subprocess isolation with 120-second hard timeouts. OS-level filelock state. Docker multi-stage non-root image. FastMCP stdio server. Yes.
+213 tests passing, zero skips. Subprocess isolation with 120-second hard timeouts. OS-level filelock state via `SynchronizedJSONStore`. Multi-stage non-root Docker image. FastMCP stdio transport. Yes.
 
 **"What's the roadmap?"**
-Decentralized digital stigmergy — a pheromone-gradient routing layer where nodes with high historical confidence attract task assignment automatically. Holonomic network scaling for multi-host DAG federation. The vision is a swarm that needs no central planner for known problem classes.
+Three primitives from the Q1 2026 institutional research corpus: **Account Factory** (per-tenant cryptographic identity), **Stigmergic λ-Decay** (temporal pheromone evaporation on memory traces), and **OOM-RL** (reward signal feeding back into planner policy across runs). The skeleton is wired; the spine is next.
 
 ---
 
-*Swarm-Forge — Built on Anthropic Claude Opus 4.7 · Deterministic by design · Zero-trust by default*
+*Swarm-Forge — Built on Anthropic Claude Opus 4.7 · Deterministic by design · Zero-trust by default · 750× cheaper than your audit firm.*
