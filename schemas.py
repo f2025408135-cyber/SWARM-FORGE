@@ -5,7 +5,7 @@ Natural language handoffs are PROHIBITED.
 """
 
 from __future__ import annotations
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Any, Literal, Optional
 from datetime import datetime
 from enum import Enum
@@ -15,8 +15,8 @@ import uuid
 # ── Enums ──────────────────────────────────────────────────────────────────
 
 class ModelTier(str, Enum):
-    OPUS = "claude-opus-4-6"
-    SONNET = "claude-sonnet-4-6"
+    OPUS = "claude-opus-4-7"
+    SONNET = "claude-sonnet-4-5"
     HAIKU = "claude-haiku-4-5-20251001"
 
 
@@ -49,6 +49,9 @@ class FailureCategory(str, Enum):
 
 class NodeInputContract(BaseModel):
     """Strictly typed input payload passed to every DAG node."""
+
+    model_config = ConfigDict(protected_namespaces=())
+
     node_id: str
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     task_description: str = Field(min_length=10, max_length=2000)

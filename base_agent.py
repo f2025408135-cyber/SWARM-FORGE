@@ -18,7 +18,7 @@ import anthropic
 
 logger: logging.Logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL: str = "claude-sonnet-4-20250514"
+_DEFAULT_MODEL: str = "claude-sonnet-4-5"
 _MAX_TOKENS: int = 2048
 _RETRY_ATTEMPTS: int = 3
 _RETRY_BACKOFF: float = 2.0
@@ -79,7 +79,7 @@ class BaseAgent:
         Optional key-value pairs rendered into a readable context block
         before the task prompt.
     model:
-        Anthropic model identifier.  Defaults to ``claude-sonnet-4-20250514``.
+        Anthropic model identifier.  Defaults to ``claude-sonnet-4-5``.
     """
 
     def __init__(

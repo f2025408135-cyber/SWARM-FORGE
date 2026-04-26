@@ -141,7 +141,7 @@ class GeometricDOMSanitizer:
                         "GeometricDOMSanitizer: excised %d hidden nodes.", removed
                     )
                     return await page.content()
-                except Exception:
+                except Exception:  # noqa: BLE001 — fail-closed: any render error drops the payload
                     logger.error(
                         "GeometricDOMSanitizer: render failed — payload dropped (fail-closed)."
                     )
@@ -150,12 +150,12 @@ class GeometricDOMSanitizer:
                     try:
                         await ctx.close()
                         await browser.close()
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — fail-closed: teardown errors must not leak past the guard
                         logger.warning(
                             "GeometricDOMSanitizer: teardown failed — process "
                             "continues fail-closed."
                         )
-        except Exception:
+        except Exception:  # noqa: BLE001 — fail-closed: Playwright bootstrap failure drops the payload
             logger.error(
                 "GeometricDOMSanitizer: Playwright bootstrap failed — "
                 "payload dropped (fail-closed)."

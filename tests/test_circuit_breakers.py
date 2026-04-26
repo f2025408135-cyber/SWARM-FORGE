@@ -191,7 +191,7 @@ class TestComputeAuditor:
         assert "agent_messages" in table_names
 
     def test_record_tokens_persists(self, auditor: ComputeAuditor) -> None:
-        auditor.record_tokens("researcher", "claude-sonnet-4-6", 500, 200)
+        auditor.record_tokens("researcher", "claude-sonnet-4-5", 500, 200)
         auditor.record_tokens("executor", "claude-haiku-4-5-20251001", 1000, 300)
 
         conn = sqlite3.connect(str(auditor.db_path))
@@ -202,7 +202,7 @@ class TestComputeAuditor:
         conn.close()
 
         assert len(rows) == 2
-        assert rows[0] == ("researcher", "claude-sonnet-4-6", 500, 200)
+        assert rows[0] == ("researcher", "claude-sonnet-4-5", 500, 200)
         assert rows[1] == ("executor", "claude-haiku-4-5-20251001", 1000, 300)
 
     def test_audit_token_expenditure_sums_today(self, auditor: ComputeAuditor) -> None:
