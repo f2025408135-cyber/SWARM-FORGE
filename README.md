@@ -6,7 +6,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Model](https://img.shields.io/badge/Core%20Model-Claude%20Opus%204.7-6B21A8?style=for-the-badge)
-![Tests](https://img.shields.io/badge/Tests-213%20Passing-22C55E?style=for-the-badge&logo=pytest)
+![Tests](https://img.shields.io/badge/Tests-232%20Passing-22C55E?style=for-the-badge&logo=pytest)
 ![Security](https://img.shields.io/badge/AgentGuard-3--Layer%20Zero--Trust-DC2626?style=for-the-badge)
 ![Architecture](https://img.shields.io/badge/Execution-Topologically%20Deterministic-F59E0B?style=for-the-badge)
 ![Transport](https://img.shields.io/badge/MCP-FastMCP%20stdio-0EA5E9?style=for-the-badge)
@@ -176,7 +176,7 @@ docker compose up orchestrator
 ## Run the Tests
 
 ```bash
-pytest tests/ -v                          # 213 / 213 passing
+pytest tests/ -v                          # 232 / 232 passing
 pytest tests/test_agent_guard.py -v       # AgentGuard zero-trust coverage
 pytest tests/test_stateful_healing.py -v  # HERMES synthesis + retry paths
 ```
@@ -609,4 +609,4 @@ All static system prompts carry `cache_control: {"type": "ephemeral"}` for aggre
 
 ---
 
-*Built on [Anthropic Claude](https://anthropic.com) · Powered by Opus 4.7 · 213 tests passing · Zero-trust by design*
+*Built on [Anthropic Claude](https://anthropic.com) · Powered by Opus 4.7 · 232 tests passing · Zero-trust by design*

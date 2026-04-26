@@ -3,7 +3,7 @@
 **Event:** Anthropic "Built with Opus 4.7" Hackathon
 **Speaker:** Founding Engineer
 **Duration:** 3 minutes (180 seconds)
-**Theme:** *The Agentic Operating System for Today's $13 Billion Orchestration Market*
+**Theme:** *The Agentic Operating System for Today's $13.12 Billion Orchestration Market*
 
 ---
 
@@ -11,11 +11,11 @@
 
 | Time | Beat | Visual / Action |
 |---|---|---|
-| 0:00 – 0:30 | **The $13B Today** — $13.12B orchestration market now, $50.31B agents by 2030, 49% software-driven harm | Slide: 2026 market curve crashing into "Probability Hell" |
+| 0:00 – 0:30 | **The $13B Determinism Gap** — $13.12B orchestration market now, 49% software-driven harm, every incumbent structurally non-deployable | Slide: 2026 market curve crashing into "Probability Hell" |
 | 0:30 – 1:15 | **We Don't Guess. We Compile.** — Streamlit Dashboard, Kahn's Algorithm, Byzantine RO-Lock | Live: Streamlit DAG Dashboard · topological sort animation |
 | 1:15 – 2:00 | **Agent Guard** — Physical AST severance of `requests` / `urllib` / `subprocess` | Live terminal: AST drop of `import requests` |
-| 2:00 – 2:45 | **The AEV Disruptor** — $2.5B market hitting **this year** · $30,000 → $40 collapse | Slide: 750× cost reduction · Opus 4.7 mandate |
-| 2:45 – 3:00 | **The Close** — The Agentic OS securing today's $13B market | Slide: Swarm-Forge logo · "Period." |
+| 2:00 – 2:45 | **The Opus 4.7 Mandate** — Why only Opus 4.7 can deliver Agentic Compilation | Slide: model fidelity comparison · structural dependency |
+| 2:45 – 3:00 | **The Close** — The Agentic OS securing today's $13.12B market | Slide: Swarm-Forge logo · "Period." |
 
 ---
 
@@ -23,19 +23,19 @@
 
 ---
 
-### [0:00 — THE $13B TODAY]
+### [0:00 — THE $13B DETERMINISM GAP]
 
-The AI Orchestration market is **$13.12 billion right now, in 2026**. Grand View Research projects the global AI Agents market at **$50.31 billion by 2030**. This is not a future thesis. This is capital deploying into agentic infrastructure today — and the safety stack cannot keep up.
+The AI Orchestration market is **$13.12 billion right now, in 2026** — not a 2030 projection, a present-tense procurement line. Capital is deploying into agentic infrastructure faster than the safety stack can absorb it.
 
 Here is the ceiling that capital is slamming into: **49% of all documented AI-attributable harm is software-driven** — autonomous agents executing destructive actions because nobody could prove what they would do next.
 
 That is not a model problem. That is an **architecture** problem.
 
-Every framework competing for that $13 billion — AutoGen, LangChain, CrewAI — is built on the same broken foundation: a probabilistic ReAct loop. Ask the LLM what to do. Do it. Ask again. Hope it converges.
+Every framework competing for that $13.12 billion — AutoGen, LangChain, LangGraph, CrewAI — is built on the same broken foundation: a probabilistic ReAct loop. Ask the LLM what to do. Do it. Ask again. Hope it converges.
 
-In institutional finance, in adversarial security, in regulated infrastructure — **"probabilistic" is a slur**. A hedge fund cannot deploy a $50M execution agent that "usually" honors its risk envelope. A SOC cannot run a red-team that "probably" won't pivot to production.
+In institutional finance, in regulated infrastructure, in audited public-sector AI — **"probabilistic" is a slur**. A hedge fund cannot deploy a $50M execution agent that "usually" honors its risk envelope. A SOC cannot run a red-team that "probably" won't pivot to production. SOC 2, ISO 27001, FedRAMP, HIPAA, PCI-DSS — every framework that matters demands provenance the incumbents cannot provide.
 
-**Probabilistic ReAct loops are the load-bearing fault in the entire $13 billion market.**
+**Probabilistic ReAct loops are the load-bearing fault in the entire $13.12 billion market.**
 
 We built Swarm-Forge to remove them.
 
@@ -89,27 +89,21 @@ That is **physical security for digital agents**. Not a guardrail. A **severance
 
 ---
 
-### [2:00 — THE AEV DISRUPTOR]
+### [2:00 — THE OPUS 4.7 MANDATE]
 
-Now the number that wins this hackathon.
-
-The **Adversarial Exposure Validation market hits $2.5 billion by the end of 2026** — this year. Today, that market is gated by a single unit-economic constraint: a manual human red-team AEV audit — the institutional standard for API and business-logic security — costs **$30,000** and takes two to four weeks of senior consultant time.
-
-A single Swarm-Forge autonomous swarm run costs approximately **$40** and completes in minutes.
-
-That is a **750× cost reduction**. We drop the floor of offensive auditing from $30,000 to $40 and convert AEV from a procurement event into a **continuous pipeline stage**. The $2.5B AEV ceiling is not aspirational — it is the implied volume once the price floor collapses.
-
-**[2:20] — Why Opus 4.7. Specifically.**
+Now the structural number that wins this hackathon.
 
 We tested every model in the Claude family against our DAG compilation contract. Haiku 4.5 collapses on complex enterprise topologies — the schema isn't there. Sonnet 4.5 needs multi-shot scaffolding and retry pumping. **Only Opus 4.7 has the structural zero-shot fidelity to build these DAGs flawlessly** — zero syntax drift, complex nested typed JSON, every time.
 
 Our `RewardSwarmJudge` runs on Sonnet 4.5 with fail-closed adversarial verification — but the *compiler*, the artifact that turns natural language into provably-executable topology, **must be Opus 4.7**. This is a structural dependency, not a sponsorship slide.
 
-**[2:35] — The Stack.**
+**[2:20] — The Stack.**
 
-$13.12B orchestration today. $50.31B agents by 2030. $2.5B AEV closing this year. The buyers — hedge funds, institutional infrastructure, sovereign air-gapped environments — cannot deploy probabilistic agents. They are waiting for **deterministic, auditable, self-healing** infrastructure with provable Byzantine Fault Tolerance.
+$13.12B AI Orchestration today. The buyers — hedge funds, institutional infrastructure, sovereign air-gapped environments, regulated public-sector AI — cannot deploy probabilistic agents. They are waiting for **deterministic, auditable, self-healing** infrastructure with provable Byzantine Fault Tolerance.
 
-Swarm-Forge is that infrastructure.
+Swarm-Forge is that infrastructure. **It is the only orchestration framework architecturally capable of being deployed inside the market it competes in.**
+
+That is not an incremental advantage. **It is a category of one.**
 
 ---
 
@@ -119,7 +113,7 @@ We didn't build an LLM wrapper.
 
 We built a deterministic execution engine with topological proofs, AST-level capability severance, fail-closed semantic adjudication, and Byzantine state-machine governance.
 
-**We built the Agentic Operating System to secure today's $13 Billion market.**
+**We built the Agentic Operating System to secure today's $13.12 Billion market.**
 
 *[Hold beat. Logo. Fade.]*
 
@@ -127,8 +121,8 @@ We built a deterministic execution engine with topological proofs, AST-level cap
 
 ## BACKUP Q&A BULLETS
 
-**"Why not AutoGen / LangChain / CrewAI?"**
-They are ReAct-loop frameworks — they solve task *routing*, not execution *correctness*. None have Kahn's Algorithm, AST capability severance, fail-closed semantic reward, or Byzantine RO-Locks. They are chatty wrappers competing for orchestration spend. We are the execution substrate underneath them.
+**"Why not AutoGen / LangChain / LangGraph / CrewAI?"**
+They are ReAct-loop frameworks — they solve task *routing*, not execution *correctness*. None have Kahn's Algorithm, AST capability severance, fail-closed semantic reward, or Byzantine RO-Locks. They are chatty wrappers competing for orchestration spend. We are the execution substrate underneath them — and the only one a regulated buyer can actually procure.
 
 **"What does Opus 4.7 give you that Sonnet doesn't?"**
 Agentic Compilation: zero-shot adherence on complex nested typed DAG schemas, plus epistemic depth deep enough to detect Model Sycophancy in reward judging. Sonnet drifts. Haiku collapses. Opus 4.7 is the only model with the structural fidelity our compiler contract demands.
@@ -137,14 +131,14 @@ Agentic Compilation: zero-shot adherence on complex nested typed DAG schemas, pl
 `DriftDetector` tracks identical non-success outcomes. After N=3, the node is short-circuited and surfaced to **Boardroom HITL Governance** — a synchronous human approval gate inside the runner. Cost-and-risk-gated by design.
 
 **"Is this production-ready?"**
-213 tests passing, zero skips. Subprocess isolation with 120-second hard timeouts. OS-level filelock state via `SynchronizedJSONStore`. Multi-stage non-root Docker image. FastMCP stdio transport. Yes.
+232 tests passing, zero skips, zero warnings. Subprocess isolation with 120-second hard timeouts. OS-level filelock state via `SynchronizedJSONStore`. Multi-stage non-root Docker image. FastMCP stdio transport. Yes.
 
-**"What's the TAM math?"**
-Current state, verified: $13.12B AI Orchestration market in 2026. $50.31B AI Agents by 2030 (Grand View Research). $2.5B AEV market closing end of 2026. Our wedge is the AEV disruptor — 750× unit-cost collapse — and the structural play is the orchestration substrate underneath the agent layer.
+**"What's the TAM?"**
+$13.12 billion AI Orchestration in 2026 — present-tense procurement, not a future forecast. Every incumbent in that TAM is structurally non-deployable for the regulated buyers who control its largest budgets. The market is large; the deployable surface is empty. We close the gap.
 
 **"What's the roadmap?"**
 Three primitives from the Q1 2026 institutional research corpus: **Account Factory** (per-tenant cryptographic identity), **Stigmergic λ-Decay** (temporal pheromone evaporation on memory traces), and **OOM-RL** (reward signal feeding back into planner policy across runs). The skeleton is wired; the spine is next.
 
 ---
 
-*Swarm-Forge — Built on Anthropic Claude Opus 4.7 · Deterministic by design · Zero-trust by default · The Agentic OS for today's $13B market.*
+*Swarm-Forge — Built on Anthropic Claude Opus 4.7 · Deterministic by design · Zero-trust by default · The Agentic OS for today's $13.12B market.*

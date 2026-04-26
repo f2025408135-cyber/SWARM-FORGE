@@ -264,63 +264,62 @@ def exfiltrate_data():
 
 ---
 
-### [BEAT 5: THE AEV MARKET DISRUPTOR — 1:52–2:25]
+### [BEAT 5: THE DETERMINISM GAP — 1:52–2:25]
 
 **VISUAL:** Cut to new slide. Large, bold typography.
 
 **TEXT ON SCREEN:**
 ```
-$2.5 BILLION
-Adversarial Exposure Validation (AEV)
+$13.12 BILLION
+AI Orchestration Market
 2026
 ```
 
 **VO:** *[Intensity rises]*
 
-"The **Adversarial Exposure Validation market hits two-point-five billion dollars by the end of 2026** — this year."
+"The **AI Orchestration market is thirteen-point-one-two billion dollars** — right now, in 2026. Not a 2030 projection. A present-tense procurement line."
 
 *[Pause. New text slides in.]*
 
 **TEXT ON SCREEN:**
 ```
-Manual Red-Team Audit
-$30,000
-2-4 weeks
+LangChain · LangGraph · AutoGen · CrewAI
+Runtime graph mutation
+Self-judging agents
+Cannot be certified
 ```
 
-**VO:** "Today, that market is gated by a single unit-economic constraint: a manual human red-team AEV audit — the institutional standard for API and business-logic security — costs **thirty thousand dollars** and takes **two to four weeks**."
+**VO:** "Every framework competing for that market — LangChain, LangGraph, AutoGen, CrewAI — shares a single architectural defect: **the execution graph is decided at runtime, by a language model, on a per-token basis.**"
 
-*[Text animates to the right. A new line slides in from the left.]*
+*[Text animates to the right. New text slides in from the left.]*
 
 **TEXT ON SCREEN (NEW):**
 ```
-Swarm-Forge Autonomous Swarm Run
-$40
-8 minutes
+SOC 2  ·  ISO 27001
+FedRAMP  ·  HIPAA  ·  PCI-DSS
+None of them ship.
 ```
 
 **VO:** *[Slowly, letting it land]*
 
-"A single Swarm-Forge autonomous swarm run costs approximately **forty dollars** and completes in **eight minutes**."
+"For the regulated buyers who control the largest procurement budgets in this market — financial services, healthcare, defense, energy, critical infrastructure, public-sector AI — that is a **non-starter**. Auditors cannot certify a hallucinated tool chain. Insurance underwriters will not bind probabilistic agents. Compliance officers cannot sign attestations against ReAct loops."
 
-*[Numbers animate: a large red arrow appears between the two lines. Above it:]*
+*[Pause. Bold text appears.]*
 
-**TEXT:** "750× Cost Collapse"
+**TEXT:** "The Determinism Gap"
 
-**VO:** "That is a **seven-hundred-and-fifty-times cost reduction**. We drop the floor of offensive auditing from thirty thousand to forty, and we convert AEV from a procurement event into a **continuous pipeline stage**."
+**VO:** "We call this the **Determinism Gap**: a multi-billion-dollar market in which every product on offer is **structurally non-deployable** for the buyers who matter."
 
 *[New slide appears.]*
 
 **TEXT ON SCREEN:**
 ```
-Continuous AEV
-Nightly threat intel ingestion
-Autonomous swarm compilation
-Reward Judge verification
-Sovereign Governor approval
+The market is large.
+The deployable surface is empty.
+Swarm-Forge closes the gap.
 ```
 
-**VO:** "The $2.5 billion AEV ceiling is not aspirational — it is the *implied volume* once the price floor collapses."
+**VO:** "Swarm-Forge is the only orchestration framework architecturally capable of being deployed inside the market it competes in. That is not an incremental advantage. **It is a category of one.**"
 
 ---
 
@@ -497,7 +496,7 @@ Swarm-Forge.
 
 ### Competitive Tear Sheet (Optional, 2:50–3:05)
 - Side-by-side table comparing Swarm-Forge to LangGraph, AutoGen, CrewAI
-- Market sizing graphic: $13.12B → $50.31B → $2.5B AEV
+- Market sizing graphic: $13.12B AI Orchestration market (2026, present tense)
 
 ### Boardroom HITL UI (3:05–3:18)
 - Live screenshot of governance interface
@@ -510,7 +509,7 @@ Swarm-Forge.
 ### Tone & Pacing
 - **0:00–0:28:** Slow, definitive. Each market number is a fact. Pause between them.
 - **0:28–1:52:** Building intensity. Move through the technical claims with conviction. No hedging. ("This is not X. This is Y.")
-- **1:52–2:50:** Peak intensity. The AEV disruption and Opus 4.7 mandate are the commercial kill-shots. Deliver them with urgency.
+- **1:52–2:50:** Peak intensity. The Determinism Gap and Opus 4.7 mandate are the commercial kill-shots. Deliver them with urgency.
 - **3:05–3:00:** Slow down again. The close is a mantra. Flat delivery, no emotion.
 
 ### Eye Contact & Movement
@@ -523,7 +522,7 @@ Swarm-Forge.
 - *"Probabilistic is a slur"* — this lands harder if said flatly.
 - *"We do not filter capabilities. We physically sever them."* — emphasis on "physically."
 - *"Even if the model hallucinates an escape — the sandbox has no mouth."* — let this breathe. It's the emotional high point.
-- *"Seven hundred fifty times cost reduction"* — let the zeros land.
+- *"Category of one"* — flat, definitive. The thesis lands here.
 - *"Greater than ninety-nine percent at two hundred plus nodes"* — the contrast with Haiku/Sonnet is the close.
 
 ### Dangerous Phrases to Avoid
@@ -543,8 +542,8 @@ This script is a **weapons-grade technical defense** of Swarm-Forge's market pos
 3. **Delivers the solution**: Deterministic DAG compilation with topological proofs, AST severance, and Byzantine governance.
 4. **Demonstrates technical depth**: Live DAG visualization, Kahn's Algorithm, three-color DFS, ActionFirewallVisitor.
 5. **Explains the Opus 4.7 moat**: Structural dependency, not sponsorship. Measurable capability gaps on three axes.
-6. **Announces the disruption**: 750× cost collapse in AEV, unlocking $2.5B market.
-7. **Positions the endgame**: We are not a framework or a vertical tool. We are the **Agentic Operating System** for the $13B orchestration economy.
+6. **Announces the disruption**: closes the Determinism Gap — the only orchestration framework architecturally capable of being deployed inside the regulated head of the market.
+7. **Positions the endgame**: We are not a framework or a vertical tool. We are the **Agentic Operating System** for the $13.12B orchestration economy.
 
 Every visual, every number, every technical claim is defensible from the codebase and the market research. No marketing fluff. No false precision. No predictions. Only documented facts and working code.
 

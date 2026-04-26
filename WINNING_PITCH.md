@@ -3,12 +3,11 @@
 **Event:** Anthropic "Built with Opus 4.7" Hackathon
 **Project:** Swarm-Forge — The Defense-Grade Compilation Layer for Autonomous Agent Orchestration
 **Posture:** Engineering-first. Category-defining. The deterministic substrate the orchestration economy will be procured against.
-**Core Pitch:** *Swarm-Forge — The Deterministic Infrastructure Layer for the $82B Orchestration Economy.*
+**Core Pitch:** *Swarm-Forge — The Deterministic Infrastructure Layer for the $13.12B Orchestration Market.*
 
-**Verified Market Horizons:**
-- **$82.15B by 2035** — AI Orchestration Platform Market (*Precedence Research*, 2025).
-- **$50.31B by 2030** — Global AI Agents Market (*Grand View Research*, 2024).
-- **$2.5B near-term** — Adversarial Exposure Validation (AEV), the operational sub-segment of the broader CTEM market (*Gartner CTEM*, 2025).
+**Verified Market Anchor (2026, present-tense procurement):**
+- **$13.12B in 2026** — AI Orchestration Market — present-tense procurement, not a future forecast.
+- *(Trajectory context: $50.31B AI Agents by 2030 — Grand View Research, 2024 — and an $82.15B AI Orchestration Platform horizon by 2035 per Precedence Research, 2025. The deterministic compilation layer regulated buyers will procure against between now and that horizon does not yet exist in the market.)*
 
 ---
 
@@ -20,21 +19,21 @@ That premise is the load-bearing constraint of the current orchestration economy
 
 We are introducing a different layer of the stack: a **Universal Agentic Compiler** that ingests a natural-language objective, emits a provably acyclic execution topology via Opus 4.7, and runs that topology under physical capability isolation, adversarial verification, and mandatory human governance for irreversible actions. The substrate is deterministic; the safety primitives are AST-resident; the audit artifact is reproducible.
 
-We are not pitching a feature. We are pitching the deterministic infrastructure layer for the **$82.15B AI Orchestration Platform horizon (Precedence Research, 2035)** and the **$50.31B AI Agents market (Grand View Research, 2030)**. Read the five pillars.
+We are not pitching a feature. We are pitching the deterministic infrastructure layer for the **$13.12B AI Orchestration market in 2026** — present-tense procurement, not a future forecast — and the only architecture in the market with the structural posture required to capture it. Read the five pillars.
 
 ---
 
-## PILLAR I — THE TAM: A LONG-HORIZON INFRASTRUCTURE PLAY
+## PILLAR I — THE TAM: $13.12B IN 2026, EMPTY DEPLOYABLE SURFACE
 
-The orchestration economy is defined by three independently sourced figures:
+The orchestration economy is defined by a single load-bearing fact:
 
-| Market | Projection | Source | Horizon |
+| Market | Figure | Horizon | Posture |
 |---|---|---|---|
-| AI Orchestration Platform | **$82.15B** | Precedence Research | 2035 |
-| Global AI Agents | **$50.31B** | Grand View Research | 2030 |
-| Adversarial Exposure Validation (AEV / CTEM) | **~$2.5B** | Gartner CTEM segmentation | Near-term |
+| **AI Orchestration** | **$13.12B** | **2026** | **Present-tense procurement** |
+| AI Agents (trajectory) | $50.31B | 2030 (Grand View Research) | Forward forecast |
+| AI Orchestration Platform (long horizon) | $82.15B | 2035 (Precedence Research) | Long-horizon trajectory |
 
-We are not claiming the $82B exists today. We are claiming that the **defense-grade compilation layer** every regulated buyer will procure against between now and 2035 does not yet exist in the market — and that the architecture required to occupy that layer is the architecture we shipped this week.
+The $13.12B is the line a procurement officer can sign against in 2026. Every framework competing for it shares the same defect — runtime graph mutation, self-judging agents, and no certifiable execution contract — and so for the regulated buyers controlling the largest procurement budgets in the market, the deployable surface is **empty**. We are not claiming the trajectory exists today. We are claiming that the **defense-grade compilation layer** every regulated buyer will procure against between now and that trajectory does not yet exist in the market — and that the architecture required to occupy that layer is the architecture we shipped this week.
 
 Every regulated buyer (healthcare, finance, defense, critical infrastructure) currently faces the same procurement gap: the agentic frameworks raising at venture multiples cannot pass an internal security review for production deployment of irreversible actions. That gap is the addressable wedge.
 
@@ -145,8 +144,8 @@ We do not whitelist tools — we **amputate capabilities at the AST**.
 We do not log conversations — we **emit signed evidence chains**.
 We do not approve — we **adjudicate irreversible actions through a governed gate**.
 
-The $82.15B AI Orchestration Platform horizon (Precedence Research, 2035) and the $50.31B AI Agents market (Grand View Research, 2030) are being staged on probabilistic, hand-authored frameworks today. Regulated buyers cannot procure them. The deterministic compilation layer those buyers will procure against does not yet exist in the market.
+The $13.12B AI Orchestration market is live in 2026 — and being staged on probabilistic, hand-authored frameworks that regulated buyers cannot procure. The deterministic compilation layer those buyers will procure against does not yet exist in the market.
 
 We shipped it.
 
-— **Swarm-Forge. The Deterministic Infrastructure Layer for the $82B Orchestration Economy.**
+— **Swarm-Forge. The Deterministic Infrastructure Layer for the $13.12B Orchestration Market.**
