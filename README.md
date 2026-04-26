@@ -25,7 +25,7 @@ You hand it a problem in natural language. Before a single subprocess is spawned
 
 Every node is gated by a four-stage zero-trust firewall — length guard → compiled regex blocklist → NFKC-normalized CognitiveFirewall (Unicode tag-block detection, base64 entropy analysis, 16 imperative-override patterns) → an AST-level `ActionFirewallVisitor` that strips **18 banned modules, 22 functions, 19 dunder reflection vectors, and 12 executables** before a single byte reaches the interpreter. Capabilities are dropped at the AST level. Banned code does not get sandboxed — it does not run. Every output is then cross-examined by `RewardSwarmJudge` (Sonnet 4.5, fail-closed, exponential backoff) — rendering the **Model Sycophancy Trap**, where a weaker judge rubber-stamps its own hallucinated exploit, structurally impossible. Failures don't crash; they invoke **HERMES Test-Time Tool Evolution**: `SkillSynthesisEngine` compiles a corrected skill from the error context, retries within a 90-second budget, and appends an immunity lesson to `LESSON.md` so the same failure cannot recur on this swarm. Drift is policed by `BayesianBeliefState` under a Byzantine consensus threshold of 0.95; under-confident branches are suspended, not pushed forward on uncertain state.
 
-The output is an **audit-grade execution trace**: structured OTel telemetry, filelock-backed state, sawtooth-compressed traceback memory, and topological provenance for every byte produced. The 750× cost reduction over manual red-team audits ($30K / 2-4 weeks → $40 / 8 minutes) is not an efficiency gain — it is a **category shift, from bespoke consulting to deployable infrastructure**.
+The output is an **audit-grade execution trace**: structured OTel telemetry, filelock-backed state, sawtooth-compressed traceback memory, and topological provenance for every byte produced. The AI Orchestration market is projected at **$13.12 billion** with double-digit CAGR — yet for the regulated buyers who control its largest procurement budgets, *no deployable solution exists*. Every competing framework decides its execution graph at runtime; none can be certified, audited, or contractually guaranteed. **Swarm-Forge is not the best orchestration framework on the market. It is the only one architecturally capable of being deployed inside it.**
 
 > **Not a chatty wrapper. An operating system for agents.**
 
@@ -276,9 +276,9 @@ The sections below cover the internal architecture in detail — for contributor
 
 ### Abstract: The Paradigm Shift
 
-The $2.5 billion Adversarial Exposure Validation (AEV) market is crippled by **Probability Hell**.
+The **$13.12 billion AI Orchestration market** is crippled by **Probability Hell**.
 
-Frameworks like AutoGen and LangChain are built on probabilistic ReAct loops. At each reasoning step, the model *decides* what to do next. Under adversarial conditions — the only conditions that matter in AEV — this produces hallucinated tool chains, sycophantic self-approval of failed exploits, and runaway token burn with no convergence guarantee. An agent that can hallucinate its own audit trail is not an agent: it is a liability.
+Frameworks like AutoGen, LangChain, LangGraph, and CrewAI are built on probabilistic ReAct loops. At each reasoning step, the model *decides* what to run next. Under regulated deployment — the only conditions that matter to the procurement budgets driving this market — this produces hallucinated tool chains, sycophantic self-approval of failed exploits, and runaway token burn with no convergence guarantee. An agent that can hallucinate its own audit trail is not an agent: it is a liability. No regulated buyer will sign for it. No insurer will bind it. No compliance officer will attest to it.
 
 **Swarm-Forge enforces Topological Determinism.**
 
@@ -535,18 +535,26 @@ flowchart TD
 
 ---
 
-### Economics & Market Position
+### Market Position: The $13 Billion Determinism Gap
 
-| Metric | Manual Human Red-Team Audit | Swarm-Forge Autonomous Swarm |
-|---|---|---|
-| **Cost per engagement** | ~$30,000 | ~$40 |
-| **Time to completion** | 2–4 weeks | Minutes to hours |
-| **Execution determinism** | None (human judgment) | Topological — two independent proofs |
-| **Throughput scaling** | Linear (headcount-bound) | Horizontal — unlimited parallel nodes |
-| **Audit trail** | Manual notes | Structured OTel telemetry, filelock state |
-| **Failure recovery** | Manual retry and escalation | SkillSynthesisEngine + LESSON.md immunity |
+The AI Orchestration market is projected at **$13.12 billion** with double-digit CAGR. Every framework competing for it shares a single architectural defect: **the execution graph is decided at runtime, by a language model, on a per-token basis.** For the regulated buyers who control the largest procurement budgets in the market — financial services, healthcare, defense, energy, critical infrastructure, public-sector AI — this is a non-starter. Auditors cannot certify a system whose tool chain is hallucinated. Insurance underwriters will not bind agentic systems that lack a deterministic execution contract. Compliance officers cannot sign attestations against probabilistic ReAct loops. SOC 2, ISO 27001, FedRAMP, HIPAA, PCI-DSS — every framework that matters demands provenance the incumbents cannot provide.
 
-The 750× cost reduction is not an efficiency gain. It is a **category shift**: from bespoke consulting to infrastructure.
+The result is the **Determinism Gap**: a multi-billion-dollar market in which every product on offer is structurally non-deployable for the buyers who matter.
+
+| Capability | LangChain / LangGraph | AutoGen / CrewAI | **Swarm-Forge** |
+|---|---|---|---|
+| Execution graph mutability at runtime | Yes | Yes | **Immutable post-plan** |
+| Plan-time cycle correctness proofs | None | None | **Two — Kahn + 3-color DFS** |
+| Capability dropping before interpreter | None | None | **AST-level (L3 visitor)** |
+| Anti-sycophancy semantic verification | None | Self-judge (vulnerable) | **Fail-closed `RewardSwarmJudge`** |
+| Audit-grade telemetry | Logs only | Logs only | **Structured OTel + filelock state** |
+| Healing without re-planning | Re-prompt loop | Re-prompt loop | **HERMES skill synthesis + LESSON.md** |
+| Drift / Byzantine consensus policing | None | None | **`ROLocker` @ 0.95 threshold** |
+| Deployable in regulated environments | **No** | **No** | **Yes** |
+
+Swarm-Forge is **not the best orchestration framework on the market. It is the only orchestration framework architecturally capable of being deployed inside it.** Every other vendor in the $13.12B TAM is competing for the consumer-grade tail. Swarm-Forge is the only product positioned for the contractually-bound, audit-required, compliance-gated head of the curve — the procurement budgets that no probabilistic framework will ever unlock.
+
+That is not an incremental advantage. **It is a category of one.**
 
 ---
 
