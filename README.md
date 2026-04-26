@@ -154,9 +154,26 @@ print(result["nodes_succeeded"]) # number of nodes that passed
 python demo_runner.py
 ```
 
-This runs a pre-built API security audit: parallel recon nodes (unauthenticated access, header analysis, JWT audit) feeding into a synthesis node, then a **Boardroom Governance Gate** that halts execution and asks for your approval before any destructive action runs.
+This runs a pre-built API security audit: parallel recon nodes (unauthenticated access, header analysis, JWT audit) feeding into a synthesis node, then a **Boardroom Governance Gate** that halts execution and asks for your approval before any destructive action runs. Uses pre-canned mock outputs — fast, offline, deterministic.
 
-### Option C: FastMCP server (for IDE / tool integrations)
+### Option C: Real end-to-end security audit (API key required)
+
+```bash
+python real_demo.py
+```
+
+Same DAG topology as Option B, but every node generates real Python via the Anthropic API (model-routed by layer — Haiku 4.5 for recon, Sonnet 4.5 for synthesis, Opus 4.7 for the governance-gated payload), executes each script in an isolated subprocess, and verifies every output through `RewardSwarmJudge`. This is the live AEV pipeline against the bundled `mock_server.py` target — start that first with `python mock_server.py`.
+
+### Option D: Streamlit dashboard (visual run inspector)
+
+```bash
+pip install streamlit flask PyJWT       # one-time, dashboard extras
+streamlit run dashboard.py
+```
+
+Opens the dark-mode CISO dashboard at `http://localhost:8501`. Reads every artefact emitted by `demo_runner.py` / `real_demo.py` (`*.json` files at repo root) and renders the DAG, per-node verdicts, AgentGuard capability drops, JWT audit chain, governance signatures, and the OTel evidence trail. Recommended visual companion when running Options B or C.
+
+### Option E: FastMCP server (for IDE / tool integrations)
 
 ```bash
 python src/fastmcp_server.py
@@ -164,7 +181,7 @@ python src/fastmcp_server.py
 
 Exposes three MCP tools over stdio: `plan_swarm`, `get_dag_status`, `validate_safety`. Connect from any MCP-compatible client (Claude Code, VS Code extension, etc.).
 
-### Option D: Docker
+### Option F: Docker
 
 ```bash
 cp .env.example .env          # fill in ANTHROPIC_API_KEY
@@ -218,10 +235,10 @@ Your problem (plain English)
            │  (per node)
            ▼
 ┌────────────────────────────────────────────┐
-│  AgentGuard L2: CognitiveFirewall          │  NFKC + 6-stage taint scan
-│  AgentGuard L3: ActionFirewallVisitor      │  AST capability dropping
-│  SandboxExecutor                          │  subprocess, 120s timeout
-│  RewardSwarmJudge (Sonnet 4.5)            │  fail-closed semantic verify
+│  Stage 2: CognitiveFirewall                │  NFKC + 6-stage taint scan
+│  Stage 3: ActionFirewallVisitor            │  AST capability dropping
+│  SandboxExecutor                           │  subprocess, 120s timeout
+│  RewardSwarmJudge (Sonnet 4.5)             │  fail-closed semantic verify
 └──────────┬─────────────────────────────────┘
            │ pass                   │ fail
            ▼                        ▼
@@ -243,11 +260,11 @@ Your problem (plain English)
 | `src/meta_orchestrator.py` | `MetaOrchestrator` | End-to-end orchestration wiring, healing, immunity |
 | `src/dag_planner.py` | `plan_dag()` → `DagPlan` | Opus 4.7 → validated DAG, Kahn cycle check |
 | `src/dag_execution_engine.py` | `ParallelDAGRunner`, `DAGManager`, `ROLocker` | DFS cycle check, Kahn bookkeeping, ThreadPoolExecutor |
-| `src/execution_sandbox.py` | `SandboxExecutor` | Bounded subprocess isolation, L3 pre-check |
+| `src/execution_sandbox.py` | `SandboxExecutor` | Bounded subprocess isolation, Stage 3 AST pre-check |
 | `src/reward_judge.py` | `RewardSwarmJudge` | Fail-closed adversarial semantic verification |
 | `src/skill_synthesis.py` | `SkillSynthesisEngine` | HERMES Test-Time Tool Evolution |
-| `src/agent_guard/` | `GeometricDOMSanitizer`, `CognitiveFirewall`, `ActionFirewallVisitor` | Three-layer zero-trust middleware |
-| `src/zero_trust_firewall.py` | `AgentFirewall` | Stage 0–1 input validation, tool call screening |
+| `src/agent_guard/` | `GeometricDOMSanitizer`, `CognitiveFirewall`, `ActionFirewallVisitor` | Stages 2–3 of the four-stage pipeline (+ HTML-specific DOMSanitizer for scraped inputs) |
+| `src/zero_trust_firewall.py` | `AgentFirewall` | Stages 0–1 of the four-stage pipeline (length guard + regex blocklist) |
 | `src/drift_metrics.py` | `DriftDetector` | Loop anomaly and hallucination detection |
 | `src/ast_context_compressor.py` | `ASTContextCompressor` | Tiktoken sawtooth memory management |
 | `src/mutex_storage.py` | `SynchronizedJSONStore` | Filelock-backed state persistence |
