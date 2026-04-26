@@ -17,7 +17,264 @@
 
 ---
 
-## Abstract: The Paradigm Shift
+## What Is Swarm-Forge? (30 seconds)
+
+You describe a complex problem in plain English. Swarm-Forge turns it into executable work.
+
+1. **You give it a problem.** Example: *"Audit this API for security vulnerabilities, identify the top 3 risks, and generate a remediation report."*
+2. **Claude Opus 4.7 compiles it into a task graph (DAG).** Every subtask is defined up front with explicit dependencies — no runtime improvisation.
+3. **Agents execute the tasks in parallel, in the correct order.** Each agent's code passes through a 4-stage security firewall before it touches your system.
+4. **A separate AI judge verifies every result.** It cannot pass output it generated itself — eliminating the sycophancy failure mode where agents approve their own broken work.
+5. **You get a structured result with a full audit trail.**
+
+That's it. You don't write code. You describe the mission.
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.12 or newer
+- An Anthropic API key ([get one here](https://console.anthropic.com/)) — *optional for the mock demo, required for live DAG planning*
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/your-username/swarm-forge.git
+cd swarm-forge
+pip install -r requirements.txt
+```
+
+### 2. Set your API key
+
+**Linux / macOS:**
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+**Windows (Command Prompt):**
+```cmd
+set ANTHROPIC_API_KEY=sk-ant-...
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+```
+
+**Or use a `.env` file (recommended):**
+```bash
+cp .env.example .env
+# Edit .env and fill in your key
+```
+
+### 3. Run the demo
+
+```bash
+python demo.py
+```
+
+No API key? It still runs — using a pre-built mock DAG so you can see the full execution flow without spending tokens.
+
+With an API key, Opus 4.7 plans a real DAG for a supply-chain optimization problem live.
+
+### 4. Check that everything is wired up (no API calls)
+
+```bash
+python demo.py --test
+```
+
+This imports every module, instantiates every class, and reports pass/fail — no API calls made.
+
+---
+
+## What You'll See
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║   === SWARM-FORGE DEMO: Autonomous Multi-Agent Orchestrator ===  ║
+║                                                              ║
+║   Natural Language  →  Validated DAG  →  Sandboxed Swarm    ║
+╚══════════════════════════════════════════════════════════════╝
+
+──────────────────────────────────────────────────────────────
+  Phase 1 — Zero-Trust Firewall
+──────────────────────────────────────────────────────────────
+  ✓  Firewall initialised with 8 compiled block-patterns
+  ✓  Legitimate prompt PASSED  (228 chars)
+  ✓  SQL-injection attempt BLOCKED  — blocked_pattern: DROP TABLE
+
+──────────────────────────────────────────────────────────────
+  Phase 2 — DAG Planning  (claude-opus-4-7)
+──────────────────────────────────────────────────────────────
+  ✓  DAG planned in 4.2s — 5 nodes
+
+    ingest_iot  ←  (root)
+       Ingest real-time sensor data from 12 factory IoT endpoints
+    demand_forecast  ←  ingest_iot
+       Run ML demand-spike forecasting on the ingested sensor stream
+    ...
+
+──────────────────────────────────────────────────────────────
+  Phase 3 — Parallel DAG Execution  (SandboxExecutor)
+──────────────────────────────────────────────────────────────
+    ✓  ingest_iot        →  success
+    ✓  demand_forecast   →  success
+    ✓  reroute_logistics →  success
+    ✓  update_erp        →  success
+    ✓  alert_suppliers   →  success
+  ✓  5/5 nodes succeeded in 1.3s
+```
+
+---
+
+## Running Your Own Problem
+
+### Option A: Programmatic API
+
+```python
+from src.meta_orchestrator import MetaOrchestrator
+
+orchestrator = MetaOrchestrator(max_workers=4)
+
+result = orchestrator.run(
+    "Analyse the logs in /var/log/app/ for error spikes in the last 24 hours, "
+    "identify the top 3 error types, and generate a markdown remediation report."
+)
+
+print(result["status"])          # "completed" | "partial" | "failed"
+print(result["nodes_succeeded"]) # number of nodes that passed
+```
+
+### Option B: Interactive security audit demo (no API key needed)
+
+```bash
+python demo_runner.py
+```
+
+This runs a pre-built API security audit: parallel recon nodes (unauthenticated access, header analysis, JWT audit) feeding into a synthesis node, then a **Boardroom Governance Gate** that halts execution and asks for your approval before any destructive action runs.
+
+### Option C: FastMCP server (for IDE / tool integrations)
+
+```bash
+python src/fastmcp_server.py
+```
+
+Exposes three MCP tools over stdio: `plan_swarm`, `get_dag_status`, `validate_safety`. Connect from any MCP-compatible client (Claude Code, VS Code extension, etc.).
+
+### Option D: Docker
+
+```bash
+cp .env.example .env          # fill in ANTHROPIC_API_KEY
+docker compose build
+docker compose up orchestrator
+```
+
+---
+
+## Run the Tests
+
+```bash
+pytest tests/ -v                          # 213 / 213 passing
+pytest tests/test_agent_guard.py -v       # AgentGuard zero-trust coverage
+pytest tests/test_stateful_healing.py -v  # HERMES synthesis + retry paths
+```
+
+---
+
+## Common Issues
+
+| Symptom | Fix |
+|---|---|
+| `EnvironmentError: ANTHROPIC_API_KEY not set` | Set the key (see step 2 above) or run the mock demo without a key |
+| `ModuleNotFoundError` | Run `pip install -r requirements.txt` from the repo root |
+| `FileNotFoundError: demo_dag.json` | Run `demo_runner.py` from the repo root directory, not from inside `src/` |
+| DAG planning falls back to mock unexpectedly | Check that your API key is valid with `python -c "import anthropic; print(anthropic.__version__)"` |
+| Windows: `export` not recognized | Use `set ANTHROPIC_API_KEY=...` in CMD or `$env:ANTHROPIC_API_KEY=...` in PowerShell |
+
+---
+
+## How the Pieces Fit Together
+
+```
+Your problem (plain English)
+        │
+        ▼
+┌─────────────────┐
+│  AgentFirewall  │  Stage 0-1: length + regex blocklist
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   dag_planner   │  Opus 4.7 → validated DAG (Pydantic v2, Kahn cycle check)
+└────────┬────────┘
+         │
+         ▼
+┌──────────────────────┐
+│  ParallelDAGRunner   │  ThreadPoolExecutor, topological order, 4 workers
+└──────────┬───────────┘
+           │  (per node)
+           ▼
+┌────────────────────────────────────────────┐
+│  AgentGuard L2: CognitiveFirewall          │  NFKC + 6-stage taint scan
+│  AgentGuard L3: ActionFirewallVisitor      │  AST capability dropping
+│  SandboxExecutor                          │  subprocess, 120s timeout
+│  RewardSwarmJudge (Sonnet 4.5)            │  fail-closed semantic verify
+└──────────┬─────────────────────────────────┘
+           │ pass                   │ fail
+           ▼                        ▼
+  SynchronizedJSONStore      SkillSynthesisEngine
+  (filelock state)           (HERMES retry, 90s budget)
+           │                        │
+           └──────────┬─────────────┘
+                      ▼
+              HPFELogger (OTel)
+              LESSON.md  (immunity memory)
+```
+
+---
+
+## Module Map
+
+| Module | Class / Entry Point | Role |
+|---|---|---|
+| `src/meta_orchestrator.py` | `MetaOrchestrator` | End-to-end orchestration wiring, healing, immunity |
+| `src/dag_planner.py` | `plan_dag()` → `DagPlan` | Opus 4.7 → validated DAG, Kahn cycle check |
+| `src/dag_execution_engine.py` | `ParallelDAGRunner`, `DAGManager`, `ROLocker` | DFS cycle check, Kahn bookkeeping, ThreadPoolExecutor |
+| `src/execution_sandbox.py` | `SandboxExecutor` | Bounded subprocess isolation, L3 pre-check |
+| `src/reward_judge.py` | `RewardSwarmJudge` | Fail-closed adversarial semantic verification |
+| `src/skill_synthesis.py` | `SkillSynthesisEngine` | HERMES Test-Time Tool Evolution |
+| `src/agent_guard/` | `GeometricDOMSanitizer`, `CognitiveFirewall`, `ActionFirewallVisitor` | Three-layer zero-trust middleware |
+| `src/zero_trust_firewall.py` | `AgentFirewall` | Stage 0–1 input validation, tool call screening |
+| `src/drift_metrics.py` | `DriftDetector` | Loop anomaly and hallucination detection |
+| `src/ast_context_compressor.py` | `ASTContextCompressor` | Tiktoken sawtooth memory management |
+| `src/mutex_storage.py` | `SynchronizedJSONStore` | Filelock-backed state persistence |
+| `src/otel_telemetry_logger.py` | `HPFELogger` | Structured OTel-style telemetry |
+| `src/fastmcp_server.py` | FastMCP server | MCP tools: `plan_swarm`, `get_dag_status`, `validate_safety` |
+
+---
+
+## Configuration Reference
+
+| Variable | Default | Effect |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | _(required)_ | Opus / Sonnet / Haiku authentication |
+| `SWARMFORGE_MAX_WORKERS` | `4` | ThreadPoolExecutor worker count |
+| `SWARMFORGE_NODE_TIMEOUT_SEC` | `120` | Per-node subprocess hard timeout |
+| `SWARMFORGE_ENABLE_HEALING` | `1` | Set `0` to disable healing + retry |
+| `SWARMFORGE_HEALING_TIMEOUT_SEC` | `90` | Max seconds per synthesize+retry cycle |
+| `AGENTGUARD_STRICT` | `1` | Strict mode rejects statically unverifiable code |
+| `LOG_LEVEL` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | _(empty)_ | Reserved for OTLP wire export |
+
+---
+
+## Deep Dive: Architecture & Design
+
+The sections below cover the internal architecture in detail — for contributors, reviewers, and judges.
+
+### Abstract: The Paradigm Shift
 
 The $2.5 billion Adversarial Exposure Validation (AEV) market is crippled by **Probability Hell**.
 
@@ -31,11 +288,11 @@ This is not a chatty wrapper. It is an **operating system for agents**.
 
 ---
 
-## The Opus 4.7 Mandate
+### The Opus 4.7 Mandate
 
 > Swarm-Forge is the first orchestration framework built exclusively for the Claude 4.7 model family. This is not a positioning statement — it is a structural dependency embedded in the execution contract of two critical subsystems.
 
-### Structural Adherence: Zero-Shot DAG Compilation
+#### Structural Adherence: Zero-Shot DAG Compilation
 
 `dag_planner.py` emits a fully validated `DagPlan` Pydantic model in a single Opus 4.7 call (max 2,048 tokens, prompt-cached system prompt). The output is a complex nested JSON structure — node IDs constrained to strict `^[a-z][a-z0-9_]*$` snake_case, typed dependency arrays, per-node metadata — generated **zero-shot with 0% syntax drift** across production test loads.
 
@@ -46,7 +303,7 @@ Primary Compiler:  claude-opus-4-7       max_tokens=2048, cache_control ephemera
 Planner Fallback:  claude-haiku-4-5      single retry with error context injection
 ```
 
-### Epistemic Depth: Anti-Sycophancy Reward Judging
+#### Epistemic Depth: Anti-Sycophancy Reward Judging
 
 `RewardSwarmJudge` performs adversarial semantic verification — cross-examining agent stdout against the original task description to detect the **Model Sycophancy Trap**: the failure mode where a weaker judge approves its own failed exploit output because the result *looks* syntactically plausible.
 
@@ -59,9 +316,9 @@ High-Assurance:    claude-opus-4-7       use_opus=True, adversarial AEV contexts
 
 ---
 
-## Technical Primitives
+### Technical Primitives
 
-### Kahn's Topological Sorting + Three-Color DFS Cycle Detection
+#### Kahn's Topological Sorting + Three-Color DFS Cycle Detection
 
 Execution order is **proven correct at plan time**, not inferred at runtime. Two independent correctness proofs run before any executor is allocated.
 
@@ -82,7 +339,7 @@ Execution order is **proven correct at plan time**, not inferred at runtime. Two
 
 A `GRAY → GRAY` back-edge is a cycle. `DAGManager` raises `ValueError` with the cycle path on construction — the `ParallelDAGRunner` never starts.
 
-### ParallelDAGRunner: Bounded Concurrent Execution
+#### ParallelDAGRunner: Bounded Concurrent Execution
 
 `ParallelDAGRunner` drives a `ThreadPoolExecutor` (default `max_workers=4`) using live Kahn bookkeeping at runtime:
 
@@ -94,7 +351,7 @@ A `GRAY → GRAY` back-edge is a cycle. `DAGManager` raises `ValueError` with th
 
 All shared state is protected by `threading.Lock` inside `DAGManager` and OS-level `filelock.FileLock` in `SynchronizedJSONStore`.
 
-### ROLocker: Byzantine Consensus Lock
+#### ROLocker: Byzantine Consensus Lock
 
 `BayesianBeliefState` tracks per-node epistemic confidence using the compound-update formula:
 
@@ -104,13 +361,13 @@ confidence_new = 1.0 - (1.0 - confidence_old) × e^(−0.3)
 
 `ROLocker` enforces a **Byzantine consensus threshold of 0.95**. Nodes whose confidence falls below this threshold are marked `SUSPENDED` — the system halts execution on that branch and surfaces the anomaly rather than proceeding on uncertain state.
 
-### Sawtooth Collapse: Thermodynamic Memory Management
+#### Sawtooth Collapse: Thermodynamic Memory Management
 
 `ASTContextCompressor` uses `tiktoken` (cl100k_base) for exact token accounting on tracebacks and execution histories. When the compressed context exceeds the allocated token budget, it performs a **sawtooth collapse** — reducing the context to the highest-signal diagnostic tokens and discarding low-entropy padding. Memory grows linearly, collapses sharply, repeats: a thermodynamic sawtooth pattern that keeps long-running swarms within model context limits without information loss.
 
 ---
 
-## AgentGuard: The Immune System
+### AgentGuard: The Immune System
 
 AgentGuard is a four-stage, defense-in-depth middleware that evaluates every input and tool call before dispatch. Each layer intercepts a distinct threat class from the DeepMind AI Agent Trap taxonomy.
 
@@ -120,13 +377,13 @@ Input ──► Stage 0 ──► Stage 1 ──► Stage 2 ──► Stage 3 �
           Guard        Blocklist    Firewall     Firewall
 ```
 
-### Stage 0: Length Guard
+#### Stage 0: Length Guard
 Hard limit of `INPUT_MAX_LEN = 10,000` characters. Oversized payloads are a classic prompt-injection amplification vector — rejected unconditionally before any parsing.
 
-### Stage 1: Regex Blocklist
+#### Stage 1: Regex Blocklist
 Compiled-pattern scan of raw input strings. Blocks: `rm -rf`, `DROP TABLE`, `os.system`, `eval(`, `__import__`, `exec(`, all `subprocess` invocations, and `curl | bash`-style pipe patterns. Single O(n) pass — no backtracking, no ambiguity, no regex catastrophe.
 
-### Stage 2: CognitiveFirewall (Memory Taint Detection)
+#### Stage 2: CognitiveFirewall (Memory Taint Detection)
 
 Six-stage O(N) linear-time analysis of memory traces and tool outputs, applied after NFKC normalization (collapses zero-width chars, homoglyphs, underscore spacing):
 
@@ -141,7 +398,7 @@ Six-stage O(N) linear-time analysis of memory traces and tool outputs, applied a
 
 **16 banned override patterns** include: `"ignore all previous instructions"`, `"system override"`, `"new prime directive"`, `"developer mode"`, `"DAN mode"`, `"jailbreak"`, `"act as if you have no restrictions"`, `"for educational purposes only"`, `"hypothetical scenario where"`, `"end of system prompt"`, and 6 additional variants.
 
-### Stage 3: ActionFirewallVisitor (AST Capability Dropping)
+#### Stage 3: ActionFirewallVisitor (AST Capability Dropping)
 
 The deepest layer. `verify_agent_action(python_code)` parses Python source into an AST and dispatches `ActionFirewallVisitor` across every node. Capabilities are **dropped at the AST level** — the code never reaches the interpreter.
 
@@ -184,9 +441,9 @@ curl  wget  nc  netcat  bash  sh  zsh  powershell  cmd  python  python3  pip
 
 ---
 
-## Architecture
+### Architecture Diagrams
 
-### Diagram 1: High-Level Orchestration Flow
+#### Diagram 1: High-Level Orchestration Flow
 
 ```mermaid
 flowchart LR
@@ -208,7 +465,7 @@ flowchart LR
     RUNNER --> DRIFT["DriftDetector\nLoop Anomaly Detection"]
 ```
 
-### Diagram 2: Per-Node Request Sequence
+#### Diagram 2: Per-Node Request Sequence
 
 ```mermaid
 sequenceDiagram
@@ -255,7 +512,7 @@ sequenceDiagram
     end
 ```
 
-### Diagram 3: AgentGuard Middleware Deep-Dive
+#### Diagram 3: AgentGuard Middleware Deep-Dive
 
 ```mermaid
 flowchart TD
@@ -278,7 +535,7 @@ flowchart TD
 
 ---
 
-## Economics & Market Position
+### Economics & Market Position
 
 | Metric | Manual Human Red-Team Audit | Swarm-Forge Autonomous Swarm |
 |---|---|---|
@@ -293,72 +550,7 @@ The 750× cost reduction is not an efficiency gain. It is a **category shift**: 
 
 ---
 
-## Roadmap
-
-### v1.1 — Holonomic Network Scaling
-- Multi-host `DAGManager` federation via Byzantine-tolerant gossip protocol.
-- Node affinity scheduling: pin GPU-intensive synthesis nodes to accelerated hosts.
-- Sub-10ms ROLocker consensus using vector clock timestamps.
-
-### v2.0 — Decentralized Digital Stigmergy
-- Immutable, append-only `LESSON.md` ledger replicated across orchestrator peers via content-addressed storage.
-- Pheromone-gradient routing: nodes with high historical `confidence_probability` attract future task assignment automatically — no central scheduler required.
-- Emergent swarm specialization: problem classes recognized from the immunity ledger bypass planning entirely.
-
----
-
-## Quick Start
-
-```bash
-# Dependencies
-pip install -r requirements.txt
-
-# API key
-export ANTHROPIC_API_KEY=your_key_here
-
-# End-to-end demo
-python demo.py
-
-# Import/wiring self-test (no API calls)
-python demo.py --test
-
-# Full test suite
-pytest tests/ -v
-
-# FastMCP stdio server
-python src/fastmcp_server.py
-```
-
-**Docker:**
-```bash
-cp .env.example .env
-docker compose build
-docker compose up orchestrator
-```
-
----
-
-## Module Map
-
-| Module | Class / Entry Point | Role |
-|---|---|---|
-| `src/meta_orchestrator.py` | `MetaOrchestrator` | End-to-end orchestration wiring, healing, immunity |
-| `src/dag_planner.py` | `plan_dag()` → `DagPlan` | Opus 4.7 → validated DAG, Kahn cycle check |
-| `src/dag_execution_engine.py` | `ParallelDAGRunner`, `DAGManager`, `ROLocker` | DFS cycle check, Kahn bookkeeping, ThreadPoolExecutor |
-| `src/execution_sandbox.py` | `SandboxExecutor` | Bounded subprocess isolation, L3 pre-check |
-| `src/reward_judge.py` | `RewardSwarmJudge` | Fail-closed adversarial semantic verification |
-| `src/skill_synthesis.py` | `SkillSynthesisEngine` | HERMES Test-Time Tool Evolution |
-| `src/agent_guard/` | `GeometricDOMSanitizer`, `CognitiveFirewall`, `ActionFirewallVisitor` | Three-layer zero-trust middleware |
-| `src/zero_trust_firewall.py` | `AgentFirewall` | Stage 0–1 input validation, tool call screening |
-| `src/drift_metrics.py` | `DriftDetector` | Loop anomaly and hallucination detection |
-| `src/ast_context_compressor.py` | `ASTContextCompressor` | Tiktoken sawtooth memory management |
-| `src/mutex_storage.py` | `SynchronizedJSONStore` | Filelock-backed state persistence |
-| `src/otel_telemetry_logger.py` | `HPFELogger` | Structured OTel-style telemetry |
-| `src/fastmcp_server.py` | FastMCP server | MCP tools: `plan_swarm`, `get_dag_status`, `validate_safety` |
-
----
-
-## Security Posture: 18-Threat Mitigation Matrix
+### Security Posture: 18-Threat Mitigation Matrix
 
 | Threat | Mitigation | Layer |
 |---|---|---|
@@ -383,7 +575,7 @@ docker compose up orchestrator
 
 ---
 
-## Model Routing & Prompt Caching
+### Model Routing & Prompt Caching
 
 | Model | Used For | Input $/MTok | Output $/MTok |
 |---|---|---|---|
@@ -395,30 +587,17 @@ All static system prompts carry `cache_control: {"type": "ephemeral"}` for aggre
 
 ---
 
-## Testing
+### Roadmap
 
-```bash
-pytest tests/ -v                          # 213 / 213 passing
-pytest tests/test_agent_guard.py -v       # AgentGuard-specific coverage
-pytest tests/test_stateful_healing.py -v  # HERMES synthesis + retry paths
-```
+#### v1.1 — Holonomic Network Scaling
+- Multi-host `DAGManager` federation via Byzantine-tolerant gossip protocol.
+- Node affinity scheduling: pin GPU-intensive synthesis nodes to accelerated hosts.
+- Sub-10ms ROLocker consensus using vector clock timestamps.
 
-**Current status: 213 / 213 passing — 0 skips · 0 xfails · 0 warnings**
-
----
-
-## Configuration Reference
-
-| Variable | Default | Effect |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | _(required)_ | Opus / Sonnet / Haiku authentication |
-| `SWARMFORGE_MAX_WORKERS` | `4` | ThreadPoolExecutor worker count |
-| `SWARMFORGE_NODE_TIMEOUT_SEC` | `120` | Per-node subprocess hard timeout |
-| `SWARMFORGE_ENABLE_HEALING` | `1` | Set `0` to disable healing + retry |
-| `SWARMFORGE_HEALING_TIMEOUT_SEC` | `90` | Max seconds per synthesize+retry cycle |
-| `AGENTGUARD_STRICT` | `1` | Strict mode rejects statically unverifiable code |
-| `LOG_LEVEL` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | _(empty)_ | Reserved for OTLP wire export |
+#### v2.0 — Decentralized Digital Stigmergy
+- Immutable, append-only `LESSON.md` ledger replicated across orchestrator peers via content-addressed storage.
+- Pheromone-gradient routing: nodes with high historical `confidence_probability` attract future task assignment automatically — no central scheduler required.
+- Emergent swarm specialization: problem classes recognized from the immunity ledger bypass planning entirely.
 
 ---
 
