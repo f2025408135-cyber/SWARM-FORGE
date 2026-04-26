@@ -7,6 +7,7 @@
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Model](https://img.shields.io/badge/Core%20Model-Claude%20Opus%204.7-6B21A8?style=for-the-badge)
 ![Tests](https://img.shields.io/badge/Tests-232%20Passing-22C55E?style=for-the-badge&logo=pytest)
+[![CI](https://github.com/f2025408135-cyber/SWARM-FORGE/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/f2025408135-cyber/SWARM-FORGE/actions/workflows/test.yml)
 ![Security](https://img.shields.io/badge/AgentGuard-3--Layer%20Zero--Trust-DC2626?style=for-the-badge)
 ![Architecture](https://img.shields.io/badge/Execution-Topologically%20Deterministic-F59E0B?style=for-the-badge)
 ![Transport](https://img.shields.io/badge/MCP-FastMCP%20stdio-0EA5E9?style=for-the-badge)
