@@ -21,3 +21,7 @@ build/
 *.egg-info/
 .pytest_cache/
 .DS_Store
+
+# Swarm-Forge runtime state files (created by demo.py / MetaOrchestrator)
+.swarmforge_*.json
+.swarmforge_*.lock
