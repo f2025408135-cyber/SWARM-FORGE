@@ -1,0 +1,44 @@
+[
+  {
+    "header": "Strict-Transport-Security",
+    "present": false,
+    "value": "",
+    "misconfigured": true,
+    "reason": "Header is missing"
+  },
+  {
+    "header": "Content-Security-Policy",
+    "present": false,
+    "value": "",
+    "misconfigured": true,
+    "reason": "Header is missing"
+  },
+  {
+    "header": "X-Frame-Options",
+    "present": false,
+    "value": "",
+    "misconfigured": true,
+    "reason": "Header is missing"
+  },
+  {
+    "header": "X-Content-Type-Options",
+    "present": false,
+    "value": "",
+    "misconfigured": true,
+    "reason": "Header is missing"
+  },
+  {
+    "header": "Referrer-Policy",
+    "present": false,
+    "value": "",
+    "misconfigured": true,
+    "reason": "Header is missing"
+  },
+  {
+    "header": "Permissions-Policy",
+    "present": false,
+    "value": "",
+    "misconfigured": true,
+    "reason": "Header is missing"
+  }
+]

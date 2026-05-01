@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ agent_name | replace("_", "-") }}
+  labels:
+    app: {{ agent_name | replace("_", "-") }}
+    swarm-forge/session: "{{ session_id }}"
+    swarm-forge/role: "{{ role }}"
+spec:
+  replicas: {{ replicas | default(1) }}
+  selector:
+    matchLabels:
+      app: {{ agent_name | replace("_", "-") }}
+  template:
+    metadata:
+      labels:
+        app: {{ agent_name | replace("_", "-") }}
+    spec:
+      containers:
+        - name: {{ agent_name | replace("_", "-") }}
+          image: {{ image_name }}:{{ version }}
+          resources:
+            requests:
+              memory: "{{ memory_request | default('256Mi') }}"
+              cpu: "{{ cpu_request | default('100m') }}"
+            limits:
+              memory: "{{ memory_limit | default('512Mi') }}"
+              cpu: "{{ cpu_limit | default('500m') }}"
+          envFrom:
+            - secretRef:
+                name: swarm-forge-secrets
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz/semantic
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 8080
+            failureThreshold: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ agent_name | replace("_", "-") }}-svc
+  annotations:
+    appProtocol: agentgateway.dev/mcp
+spec:
+  selector:
+    app: {{ agent_name | replace("_", "-") }}
+  ports:
+    - port: 8080
+      targetPort: 8080

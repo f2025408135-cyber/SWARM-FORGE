@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -100 200 200" role="img" aria-label="Swarm-Forge — six chevrons converging on a central node">
+  <title>Swarm-Forge</title>
+  <desc>Six inward-pointing chevrons arranged in hexagonal symmetry around a central node. Reads as a swarm of agents converging on a deterministic compiled output, framed by the cross-section of a hex-stock forge billet.</desc>
+  <defs>
+    <path id="sf-chevron" d="M 0 -25 L -22 -65 L 0 -50 L 22 -65 Z"/>
+  </defs>
+  <g fill="currentColor">
+    <use href="#sf-chevron" transform="rotate(0)"/>
+    <use href="#sf-chevron" transform="rotate(60)"/>
+    <use href="#sf-chevron" transform="rotate(120)"/>
+    <use href="#sf-chevron" transform="rotate(180)"/>
+    <use href="#sf-chevron" transform="rotate(240)"/>
+    <use href="#sf-chevron" transform="rotate(300)"/>
+    <circle cx="0" cy="0" r="7"/>
+  </g>
+</svg>

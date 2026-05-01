@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.env.*
+*.log
+*.jsonl
+logs/
+generated/
+hpfe_traces.jsonl
+MASTER_SCHEMA.json.lock
+MASTER_SCHEMA.json.tmp
+.skills_directory.lock
+skills/*.tmp
+*.safetensors
+*.gguf
+venv/
+.venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.DS_Store
+
+# Swarm-Forge runtime state files (created by demo.py / MetaOrchestrator)
+.swarmforge_*.json
+.swarmforge_*.lock

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-110 -100 720 200" role="img" aria-label="Swarm-Forge wordmark">
+  <title>Swarm-Forge</title>
+  <defs>
+    <path id="sfw-chevron" d="M 0 -25 L -22 -65 L 0 -50 L 22 -65 Z"/>
+  </defs>
+  <g fill="currentColor">
+    <use href="#sfw-chevron" transform="rotate(0)"/>
+    <use href="#sfw-chevron" transform="rotate(60)"/>
+    <use href="#sfw-chevron" transform="rotate(120)"/>
+    <use href="#sfw-chevron" transform="rotate(180)"/>
+    <use href="#sfw-chevron" transform="rotate(240)"/>
+    <use href="#sfw-chevron" transform="rotate(300)"/>
+    <circle cx="0" cy="0" r="7"/>
+    <text x="115" y="0" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Inter, 'Helvetica Neue', Arial, sans-serif" font-size="92" font-weight="700" letter-spacing="-3">swarm-forge</text>
+  </g>
+</svg>

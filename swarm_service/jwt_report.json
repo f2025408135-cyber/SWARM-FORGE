@@ -1,0 +1,7 @@
+{
+  "error": "Invalid header padding",
+  "algorithm": null,
+  "none_algorithm_detected": false,
+  "payload_keys": [],
+  "exp_present": false
+}

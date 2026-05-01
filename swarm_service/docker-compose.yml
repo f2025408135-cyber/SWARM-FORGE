@@ -1,0 +1,87 @@
+# Swarm-Forge Orchestrator — Production docker-compose topology.
+#
+# Brings up two services that share the same codebase image:
+#
+#   orchestrator : runs the end-to-end demo.py path (plan → execute → judge).
+#   mcp          : runs the FastMCP stdio server, exposing plan_swarm,
+#                  get_dag_status, and validate_safety over stdio.
+#
+# Usage:
+#   cp .env.example .env           # set ANTHROPIC_API_KEY
+#   docker compose build
+#   docker compose up orchestrator # run the demo
+#   docker compose run --rm mcp    # attach stdio to the MCP server
+#   docker compose run --rm test   # run the full pytest suite
+#
+# Shared volumes:
+#   skills_data  : synthesized skills persist across restarts.
+#   state_data   : .swarmforge_state.json + LESSON.md persist across restarts.
+
+services:
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: swarmforge:latest
+    container_name: swarmforge-orchestrator
+    command: ["orchestrator"]
+    env_file:
+      - .env
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SWARMFORGE_ROLE: orchestrator
+      SWARMFORGE_MAX_WORKERS: ${SWARMFORGE_MAX_WORKERS:-4}
+      SWARMFORGE_NODE_TIMEOUT_SEC: ${SWARMFORGE_NODE_TIMEOUT_SEC:-120}
+    volumes:
+      - skills_data:/app/swarm_skills
+      - state_data:/app/.swarmforge_state
+    healthcheck:
+      test: ["CMD", "python", "-c", "from src import MetaOrchestrator; print('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: swarmforge:latest
+    container_name: swarmforge-mcp
+    command: ["mcp"]
+    env_file:
+      - .env
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SWARMFORGE_ROLE: mcp
+    stdin_open: true
+    tty: true
+    volumes:
+      - skills_data:/app/swarm_skills
+      - state_data:/app/.swarmforge_state
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    restart: unless-stopped
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: swarmforge:latest
+    container_name: swarmforge-test
+    command: ["test"]
+    env_file:
+      - .env
+    profiles:
+      - ci
+    environment:
+      LOG_LEVEL: DEBUG
+      SWARMFORGE_ROLE: test
+
+volumes:
+  skills_data:
+    name: swarmforge_skills_data
+  state_data:
+    name: swarmforge_state_data
