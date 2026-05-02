@@ -15,17 +15,17 @@ import { StatusBadge } from "@/components/ui/status-badge";
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats({
-    query: { refetchInterval: 5000 }
+    query: { refetchInterval: 5000 } as any
   });
-  
+
   const { data: swarmsData, isLoading: swarmsLoading } = useListSwarms(
-    { limit: 5 }, 
-    { query: { refetchInterval: 5000 } }
+    { limit: 5 },
+    { query: { refetchInterval: 5000 } as any }
   );
 
   const { data: securityData, isLoading: securityLoading } = useGetSecurityEvents(
     { limit: 5 },
-    { query: { refetchInterval: 5000 } }
+    { query: { refetchInterval: 5000 } as any }
   );
 
   return (

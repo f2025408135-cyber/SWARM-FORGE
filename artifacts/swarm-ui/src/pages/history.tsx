@@ -8,8 +8,8 @@ import { Link } from "wouter";
 export default function History() {
   // Fetch historical data (in a real app, maybe with a different filter, but here we list all)
   const { data, isLoading } = useListSwarms(
-    { limit: 100 }, 
-    { query: { refetchInterval: 30000 } }
+    { limit: 100 },
+    { query: { refetchInterval: 30000 } as any }
   );
 
   return (

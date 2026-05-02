@@ -26,5 +26,6 @@ swarmRouter.use("/swarms", swarmProxy);
 swarmRouter.use("/dashboard/stats", swarmProxy);
 swarmRouter.use("/security/events", swarmProxy);
 swarmRouter.use("/security/firewall/test", swarmProxy);
+swarmRouter.use("/providers/status", swarmProxy);
 
 export default swarmRouter;

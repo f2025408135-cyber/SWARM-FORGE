@@ -15,7 +15,7 @@ export default function Security() {
 
   const { data, isLoading } = useGetSecurityEvents(
     { limit: 20 },
-    { query: { refetchInterval: 5000 } }
+    { query: { refetchInterval: 5000 } as any }
   );
 
   const testFirewall = useTestFirewall({

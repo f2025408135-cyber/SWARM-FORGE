@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface HealthStatus {
-  status: string;
-  availableProviders?: string[];
-  hasAnyKey?: boolean;
+export interface TierInfo {
+  description: string;
+  resolvedProvider?: string | null;
+  resolvedModel?: string | null;
+  mockProvider: string;
+  mockModel: string;
 }

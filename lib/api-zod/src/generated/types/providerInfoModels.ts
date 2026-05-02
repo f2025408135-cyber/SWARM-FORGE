@@ -6,8 +6,4 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface HealthStatus {
-  status: string;
-  availableProviders?: string[];
-  hasAnyKey?: boolean;
-}
+export type ProviderInfoModels = { [key: string]: string };

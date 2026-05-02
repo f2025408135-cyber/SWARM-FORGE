@@ -5,9 +5,6 @@
  * SWARM-FORGE Control Plane API — Multi-Provider Edition
  * OpenAPI spec version: 0.2.0
  */
+import type { TierInfo } from "./tierInfo";
 
-export interface HealthStatus {
-  status: string;
-  availableProviders?: string[];
-  hasAnyKey?: boolean;
-}
+export type ProvidersStatusTiers = { [key: string]: TierInfo };

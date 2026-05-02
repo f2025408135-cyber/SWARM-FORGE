@@ -2,8 +2,8 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: SWARM-FORGE Control Plane API
+  version: 0.2.0
+  description: SWARM-FORGE Control Plane API — Multi-Provider Edition
 servers:
   - url: /api
     description: Base API path
@@ -16,6 +16,8 @@ tags:
     description: Dashboard metrics
   - name: security
     description: Security and firewall events
+  - name: providers
+    description: Provider routing and status
 
 paths:
   /healthz:
@@ -31,6 +33,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /providers/status:
+    get:
+      operationId: getProvidersStatus
+      tags: [providers]
+      summary: Get all provider configurations and tier routing info
+      responses:
+        "200":
+          description: Provider status and tier routing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvidersStatus"
+
   /swarms:
     get:
       operationId: listSwarms
@@ -41,7 +56,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [pending, planning, running, completed, failed]
+            enum: [pending, planning, running, completed, failed, aborted]
         - name: limit
           in: query
           schema:
@@ -223,6 +238,12 @@ components:
       properties:
         status:
           type: string
+        availableProviders:
+          type: array
+          items:
+            type: string
+        hasAnyKey:
+          type: boolean
       required:
         - status
 
@@ -237,6 +258,22 @@ components:
         - error
         - message
 
+    ModelTier:
+      type: string
+      description: >
+        Provider-agnostic model capability tier.
+        nano=ultra-fast/cheap (classification, tagging),
+        small=lightweight (summarization, simple Q&A),
+        medium=balanced (analysis, code gen) [default],
+        large=advanced (strategic planning, complex synthesis),
+        frontier=maximum (highest reasoning, critical decisions)
+      enum: [nano, small, medium, large, frontier]
+
+    Provider:
+      type: string
+      description: AI model provider
+      enum: [openai, anthropic, google, mistral, groq, cohere, openrouter]
+
     CreateSwarmRequest:
       type: object
       properties:
@@ -247,13 +284,13 @@ components:
           maxLength: 2000
         maxWorkers:
           type: integer
-          default: 4
+          default: 5
           minimum: 1
           maximum: 16
-        modelTier:
-          type: string
-          enum: [haiku, sonnet, opus]
-          default: sonnet
+        preferredProvider:
+          $ref: "#/components/schemas/Provider"
+          nullable: true
+          description: Preferred AI provider (auto-selected if not specified)
         mockMode:
           type: boolean
           default: false
@@ -288,7 +325,15 @@ components:
         firewallPassed:
           type: boolean
         modelTier:
+          $ref: "#/components/schemas/ModelTier"
+        resolvedProvider:
           type: string
+          nullable: true
+          description: The actual provider selected for this node by the router
+        resolvedModel:
+          type: string
+          nullable: true
+          description: The actual model name selected for this node
       required:
         - nodeId
         - taskDescription
@@ -307,6 +352,9 @@ components:
           enum: [pending, planning, running, completed, failed, aborted]
         mockMode:
           type: boolean
+        preferredProvider:
+          type: string
+          nullable: true
         nodes:
           type: array
           items:
@@ -374,6 +422,68 @@ components:
       required:
         - swarms
         - total
+
+    ProviderInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        color:
+          type: string
+        configured:
+          type: boolean
+        models:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+        - name
+        - color
+        - configured
+        - models
+
+    TierInfo:
+      type: object
+      properties:
+        description:
+          type: string
+        resolvedProvider:
+          type: string
+          nullable: true
+        resolvedModel:
+          type: string
+          nullable: true
+        mockProvider:
+          type: string
+        mockModel:
+          type: string
+      required:
+        - description
+        - mockProvider
+        - mockModel
+
+    ProvidersStatus:
+      type: object
+      properties:
+        providers:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ProviderInfo"
+        tiers:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/TierInfo"
+        availableProviders:
+          type: array
+          items:
+            type: string
+        hasAnyKey:
+          type: boolean
+      required:
+        - providers
+        - tiers
+        - availableProviders
+        - hasAnyKey
 
     DashboardStats:
       type: object

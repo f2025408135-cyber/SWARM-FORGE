@@ -6,14 +6,14 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDate, formatDuration } from "@/lib/formatters";
 import { Clock, Network, Cpu } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ListSwarmsStatus } from "@workspace/api-client-react/src/generated/api.schemas";
+type ListSwarmsStatus = "pending" | "planning" | "running" | "completed" | "failed" | "aborted";
 
 export default function Swarms() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   
   const { data, isLoading } = useListSwarms(
     statusFilter !== "all" ? { status: statusFilter as ListSwarmsStatus } : {},
-    { query: { refetchInterval: 5000 } }
+    { query: { refetchInterval: 5000 } as any }
   );
 
   return (
