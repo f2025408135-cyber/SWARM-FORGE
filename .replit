@@ -59,3 +59,9 @@ externalPort = 80
 [[ports]]
 localPort = 19541
 externalPort = 3002
+
+[userenv]
+
+[userenv.shared]
+GITHUB_REPO = "https://github.com/f2025408135-cyber/SWARM-FORGE.git"
+GITHUB_USER = "f2025408135-cyber"
