@@ -1,0 +1,49 @@
+{
+  "total_headers_checked": 6,
+  "headers_present": 0,
+  "misconfigured_headers": 6,
+  "details": [
+    {
+      "header": "Strict-Transport-Security",
+      "present": false,
+      "value": "",
+      "misconfigured": true,
+      "reason": "Strict-Transport-Security header is not present"
+    },
+    {
+      "header": "Content-Security-Policy",
+      "present": false,
+      "value": "",
+      "misconfigured": true,
+      "reason": "Content-Security-Policy header is not present"
+    },
+    {
+      "header": "X-Frame-Options",
+      "present": false,
+      "value": "",
+      "misconfigured": true,
+      "reason": "X-Frame-Options header is not present"
+    },
+    {
+      "header": "X-Content-Type-Options",
+      "present": false,
+      "value": "",
+      "misconfigured": true,
+      "reason": "X-Content-Type-Options header is not present"
+    },
+    {
+      "header": "Referrer-Policy",
+      "present": false,
+      "value": "",
+      "misconfigured": true,
+      "reason": "Referrer-Policy header is not present"
+    },
+    {
+      "header": "Permissions-Policy",
+      "present": false,
+      "value": "",
+      "misconfigured": true,
+      "reason": "Permissions-Policy header is not present"
+    }
+  ]
+}

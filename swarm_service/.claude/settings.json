@@ -1,0 +1,43 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python scripts/pre_tool_validation.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|Create",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python scripts/post_tool_ast_flush.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python scripts/post_bash_audit.py"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": ["Bash", "Edit", "Read", "Write", "Glob", "Grep"],
+    "deny": ["WebFetch"]
+  },
+  "env": {
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "35",
+    "CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY": "5"
+  }
+}

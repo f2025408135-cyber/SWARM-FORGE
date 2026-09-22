@@ -1,0 +1,84 @@
+# Swarm-Forge — Docker build context exclusions.
+#
+# Keeps the image lean and prevents secrets (.env), VCS metadata (.git),
+# developer tooling caches, and transient runtime artefacts from leaking
+# into published layers or slowing down the build.
+
+# --- VCS / developer metadata -------------------------------------------------
+.git
+.gitignore
+.gitattributes
+.github
+.idea
+.vscode
+.cursor
+.claude
+
+# --- Secrets / environment --------------------------------------------------
+# Never bake secrets into the image. Compose passes .env in via env_file.
+.env
+.env.*
+!.env.example
+
+# --- Python bytecode and tool caches ----------------------------------------
+__pycache__
+**/__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.tox
+.nox
+.coverage
+.coverage.*
+htmlcov
+.hypothesis
+
+# --- Virtualenvs ------------------------------------------------------------
+.venv
+venv
+env
+ENV
+
+# --- Build / packaging artefacts --------------------------------------------
+build
+dist
+*.egg-info
+*.egg
+wheels
+pip-wheel-metadata
+
+# --- Runtime state / logs / generated data ----------------------------------
+logs
+*.log
+.swarmforge_state.json
+.swarmforge_state
+.swarmforge_demo_state.json
+swarm_skills/skill_*_tmp.py
+swarm_skills/__pycache__
+memory/*.lock
+templates/*.lock
+
+# --- JSON output artefacts from demo / real_demo runs -----------------------
+# These are regenerated on every run; they should NOT be baked into the image.
+endpoint_report.json
+exfil_report.json
+health_check_report.json
+health_report.json
+jwt_report.json
+recon_*.json
+risk_assessment_report.json
+security_headers_report.json
+synthesis_vulnerability_aggregation.json
+unified_risk_assessment.json
+boardroom_exfiltration_gate.json
+demo_dag.json
+
+# --- Documentation / audit artefacts we do not need at runtime --------------
+JUDGE_REVIEW.md
+
+# --- OS junk ----------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini

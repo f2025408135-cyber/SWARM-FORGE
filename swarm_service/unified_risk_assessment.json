@@ -1,0 +1,76 @@
+{
+  "total_findings": 9,
+  "critical": [
+    {
+      "category": "JWT Vulnerability",
+      "severity": "Critical",
+      "description": "JWT \"none\" algorithm detected - allows token forgery and authentication bypass",
+      "cvss_score": 9.8,
+      "algorithm": "none"
+    }
+  ],
+  "high": [
+    {
+      "category": "Unauthenticated Access",
+      "severity": "High",
+      "description": "Endpoint http://localhost:3000/api/v1/users accessible without authentication",
+      "cvss_score": 7.5,
+      "endpoint": "http://localhost:3000/api/v1/users"
+    },
+    {
+      "category": "Security Header Misconfiguration",
+      "severity": "High",
+      "description": "Strict-Transport-Security: Header is missing",
+      "cvss_score": 6.5,
+      "header": "Strict-Transport-Security"
+    },
+    {
+      "category": "Security Header Misconfiguration",
+      "severity": "High",
+      "description": "Content-Security-Policy: Header is missing",
+      "cvss_score": 6.5,
+      "header": "Content-Security-Policy"
+    }
+  ],
+  "medium": [
+    {
+      "category": "Unauthenticated Access",
+      "severity": "Medium",
+      "description": "Endpoint http://localhost:3000/api/v1/health accessible without authentication",
+      "cvss_score": 5.3,
+      "endpoint": "http://localhost:3000/api/v1/health"
+    },
+    {
+      "category": "Security Header Misconfiguration",
+      "severity": "Medium",
+      "description": "X-Frame-Options: Header is missing",
+      "cvss_score": 4.3,
+      "header": "X-Frame-Options"
+    },
+    {
+      "category": "Security Header Misconfiguration",
+      "severity": "Medium",
+      "description": "X-Content-Type-Options: Header is missing",
+      "cvss_score": 4.3,
+      "header": "X-Content-Type-Options"
+    },
+    {
+      "category": "Security Header Misconfiguration",
+      "severity": "Medium",
+      "description": "Referrer-Policy: Header is missing",
+      "cvss_score": 4.3,
+      "header": "Referrer-Policy"
+    },
+    {
+      "category": "Security Header Misconfiguration",
+      "severity": "Medium",
+      "description": "Permissions-Policy: Header is missing",
+      "cvss_score": 4.3,
+      "header": "Permissions-Policy"
+    }
+  ],
+  "low": [],
+  "auth_bypass_feasible": true,
+  "recommended_poc_vector": "Craft JWT with 'none' algorithm and admin role: Header: {\"alg\":\"none\",\"typ\":\"JWT\"}, Payload: {\"sub\":\"admin\",\"role\":\"admin\",\"exp\":9999999999}. Send to /api/v1/admin with Authorization: Bearer <base64_header>.<base64_payload>.",
+  "poc_execution_result": "ATTEMPTED: Response code 404"
+}

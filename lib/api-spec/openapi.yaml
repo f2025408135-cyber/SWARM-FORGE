@@ -1,0 +1,643 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.2.0
+  description: SWARM-FORGE Control Plane API — Multi-Provider Edition
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: swarms
+    description: Swarm orchestration
+  - name: dashboard
+    description: Dashboard metrics
+  - name: security
+    description: Security and firewall events
+  - name: providers
+    description: Provider routing and status
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /providers/status:
+    get:
+      operationId: getProvidersStatus
+      tags: [providers]
+      summary: Get all provider configurations and tier routing info
+      responses:
+        "200":
+          description: Provider status and tier routing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvidersStatus"
+
+  /swarms:
+    get:
+      operationId: listSwarms
+      tags: [swarms]
+      summary: List all swarms
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, planning, running, completed, failed, aborted]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of swarms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwarmList"
+    post:
+      operationId: createSwarm
+      tags: [swarms]
+      summary: Plan and create a new swarm from a natural language task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSwarmRequest"
+      responses:
+        "201":
+          description: Swarm created and DAG planned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Swarm"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /swarms/{swarmId}:
+    get:
+      operationId: getSwarm
+      tags: [swarms]
+      summary: Get swarm details including DAG and node statuses
+      parameters:
+        - name: swarmId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Swarm details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Swarm"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: deleteSwarm
+      tags: [swarms]
+      summary: Delete a swarm
+      parameters:
+        - name: swarmId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /swarms/{swarmId}/deploy:
+    post:
+      operationId: deploySwarm
+      tags: [swarms]
+      summary: Deploy (execute) a planned swarm
+      parameters:
+        - name: swarmId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deployment started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Swarm"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /swarms/{swarmId}/abort:
+    post:
+      operationId: abortSwarm
+      tags: [swarms]
+      summary: Abort a running swarm
+      parameters:
+        - name: swarmId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Aborted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Swarm"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get aggregated dashboard metrics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /security/events:
+    get:
+      operationId: getSecurityEvents
+      tags: [security]
+      summary: Get firewall and security events
+      parameters:
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [info, warn, critical]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Security events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityEventList"
+
+  /security/firewall/test:
+    post:
+      operationId: testFirewall
+      tags: [security]
+      summary: Test a payload against the zero-trust firewall
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FirewallTestRequest"
+      responses:
+        "200":
+          description: Firewall verdict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirewallVerdict"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        availableProviders:
+          type: array
+          items:
+            type: string
+        hasAnyKey:
+          type: boolean
+      required:
+        - status
+
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message
+
+    ModelTier:
+      type: string
+      description: >
+        Provider-agnostic model capability tier.
+        nano=ultra-fast/cheap (classification, tagging),
+        small=lightweight (summarization, simple Q&A),
+        medium=balanced (analysis, code gen) [default],
+        large=advanced (strategic planning, complex synthesis),
+        frontier=maximum (highest reasoning, critical decisions)
+      enum: [nano, small, medium, large, frontier]
+
+    Provider:
+      type: string
+      description: AI model provider
+      enum: [openai, anthropic, google, mistral, groq, cohere, openrouter]
+
+    CreateSwarmRequest:
+      type: object
+      properties:
+        task:
+          type: string
+          description: Natural language task description
+          minLength: 10
+          maxLength: 2000
+        maxWorkers:
+          type: integer
+          default: 5
+          minimum: 1
+          maximum: 16
+        preferredProvider:
+          $ref: "#/components/schemas/Provider"
+          nullable: true
+          description: Preferred AI provider (auto-selected if not specified)
+        mockMode:
+          type: boolean
+          default: false
+          description: Use mock/demo mode (no API key required)
+      required:
+        - task
+
+    SwarmNode:
+      type: object
+      properties:
+        nodeId:
+          type: string
+        taskDescription:
+          type: string
+        dependencies:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [pending, running, success, failed, skipped, blocked]
+        output:
+          type: string
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        tokensConsumed:
+          type: integer
+        executionDurationMs:
+          type: number
+        firewallPassed:
+          type: boolean
+        modelTier:
+          $ref: "#/components/schemas/ModelTier"
+        resolvedProvider:
+          type: string
+          nullable: true
+          description: The actual provider selected for this node by the router
+        resolvedModel:
+          type: string
+          nullable: true
+          description: The actual model name selected for this node
+      required:
+        - nodeId
+        - taskDescription
+        - dependencies
+        - status
+
+    Swarm:
+      type: object
+      properties:
+        id:
+          type: string
+        task:
+          type: string
+        status:
+          type: string
+          enum: [pending, planning, running, completed, failed, aborted]
+        mockMode:
+          type: boolean
+        preferredProvider:
+          type: string
+          nullable: true
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SwarmNode"
+        edges:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        criticalPath:
+          type: array
+          items:
+            type: string
+        parallelGroups:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        nodesTotal:
+          type: integer
+        nodesSucceeded:
+          type: integer
+        nodesFailed:
+          type: integer
+        tokensConsumed:
+          type: integer
+        executionDurationMs:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        errorMessage:
+          type: string
+          nullable: true
+      required:
+        - id
+        - task
+        - status
+        - mockMode
+        - nodes
+        - edges
+        - criticalPath
+        - parallelGroups
+        - nodesTotal
+        - nodesSucceeded
+        - nodesFailed
+        - tokensConsumed
+        - createdAt
+        - updatedAt
+
+    SwarmList:
+      type: object
+      properties:
+        swarms:
+          type: array
+          items:
+            $ref: "#/components/schemas/Swarm"
+        total:
+          type: integer
+      required:
+        - swarms
+        - total
+
+    ProviderInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        color:
+          type: string
+        configured:
+          type: boolean
+        models:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+        - name
+        - color
+        - configured
+        - models
+
+    TierInfo:
+      type: object
+      properties:
+        description:
+          type: string
+        resolvedProvider:
+          type: string
+          nullable: true
+        resolvedModel:
+          type: string
+          nullable: true
+        mockProvider:
+          type: string
+        mockModel:
+          type: string
+      required:
+        - description
+        - mockProvider
+        - mockModel
+
+    ProvidersStatus:
+      type: object
+      properties:
+        providers:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ProviderInfo"
+        tiers:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/TierInfo"
+        availableProviders:
+          type: array
+          items:
+            type: string
+        hasAnyKey:
+          type: boolean
+      required:
+        - providers
+        - tiers
+        - availableProviders
+        - hasAnyKey
+
+    DashboardStats:
+      type: object
+      properties:
+        totalSwarms:
+          type: integer
+        activeSwarms:
+          type: integer
+        completedSwarms:
+          type: integer
+        failedSwarms:
+          type: integer
+        totalNodes:
+          type: integer
+        totalTokensConsumed:
+          type: integer
+        avgExecutionMs:
+          type: number
+        firewallBlocked:
+          type: integer
+        firewallPassed:
+          type: integer
+        successRate:
+          type: number
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityItem"
+      required:
+        - totalSwarms
+        - activeSwarms
+        - completedSwarms
+        - failedSwarms
+        - totalNodes
+        - totalTokensConsumed
+        - avgExecutionMs
+        - firewallBlocked
+        - firewallPassed
+        - successRate
+        - recentActivity
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [swarm_created, swarm_completed, swarm_failed, node_completed, firewall_blocked, swarm_deployed]
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        swarmId:
+          type: string
+          nullable: true
+        severity:
+          type: string
+          enum: [info, warn, critical]
+      required:
+        - id
+        - type
+        - message
+        - timestamp
+        - severity
+
+    SecurityEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        eventType:
+          type: string
+          enum: [firewall_blocked, firewall_passed, ast_capability_drop, unicode_detected, base64_entropy, reward_judge_fail, governance_gate]
+        severity:
+          type: string
+          enum: [info, warn, critical]
+        payload:
+          type: string
+        blockedPattern:
+          type: string
+          nullable: true
+        droppedCapabilities:
+          type: array
+          items:
+            type: string
+        verdict:
+          type: string
+          enum: [passed, blocked, dropped]
+        swarmId:
+          type: string
+          nullable: true
+        nodeId:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - id
+        - eventType
+        - severity
+        - payload
+        - droppedCapabilities
+        - verdict
+        - timestamp
+
+    SecurityEventList:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/SecurityEvent"
+        total:
+          type: integer
+      required:
+        - events
+        - total
+
+    FirewallTestRequest:
+      type: object
+      properties:
+        payload:
+          type: string
+          description: Payload to test against the zero-trust firewall
+      required:
+        - payload
+
+    FirewallVerdict:
+      type: object
+      properties:
+        passed:
+          type: boolean
+        blockedPattern:
+          type: string
+          nullable: true
+        droppedCapabilities:
+          type: array
+          items:
+            type: string
+        unicodeDetected:
+          type: boolean
+        base64EntropyScore:
+          type: number
+        overridePatternFound:
+          type: boolean
+        verdictMessage:
+          type: string
+      required:
+        - passed
+        - droppedCapabilities
+        - unicodeDetected
+        - base64EntropyScore
+        - overridePatternFound
+        - verdictMessage

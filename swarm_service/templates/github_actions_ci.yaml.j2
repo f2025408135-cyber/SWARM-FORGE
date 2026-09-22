@@ -1,0 +1,52 @@
+name: Swarm-Forge Child Swarm CI — {{ swarm_name }}
+
+on:
+  push:
+    branches: [main, "fix/auto-remediation-*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install -r requirements.txt --system
+
+      - name: Run schema validation
+        run: pytest tests/test_schemas.py -v
+
+      - name: Run agent unit tests
+        run: pytest tests/ -v --timeout=60
+
+      - name: Build distroless image
+        run: |
+          docker build -t {{ swarm_name }}:${{ "{{" }} github.sha {{ "}}" }} .
+
+      - name: Authenticate to GCP
+        if: github.ref == 'refs/heads/main'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ "{{" }} secrets.GCP_WORKLOAD_IDENTITY {{ "}}" }}
+
+      - name: Deploy to staging
+        if: github.ref == 'refs/heads/main'
+        run: |
+          helm upgrade --install {{ swarm_name }} ./helm \
+            --set image.tag=${{ "{{" }} github.sha {{ "}}" }} \
+            --namespace swarm-forge-staging
